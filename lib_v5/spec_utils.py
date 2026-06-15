@@ -43,6 +43,9 @@ else:
 
 MAX_SPEC = 'Max Spec'
 MIN_SPEC = 'Min Spec'
+MIN_SPEC_SMOOTH = 'Min Spec Smooth'
+MAX_SPEC_SMOOTH = 'Max Spec Smooth'
+AUDIO_AVERAGE_ALIGN = 'Average Align'
 LIN_ENSE = 'Linear Ensemble'
 
 MAX_WAV = MAX_SPEC
@@ -528,6 +531,8 @@ def ensembling(a, inputs, is_wavs=False):
     for i in range(1, len(inputs)):
         if i == 1:
             input = inputs[0]
+            if a in [MIN_SPEC_SMOOTH, MAX_SPEC_SMOOTH] and not is_wavs:
+                anchor_phase = np.exp(1.j * np.angle(input))
 
         if is_wavs:
             ln = min([input.shape[1], inputs[i].shape[1]])
@@ -537,11 +542,19 @@ def ensembling(a, inputs, is_wavs=False):
             ln = min([input.shape[2], inputs[i].shape[2]])
             input = input[:,:,:ln]
             inputs[i] = inputs[i][:,:,:ln]
+            if a in [MIN_SPEC_SMOOTH, MAX_SPEC_SMOOTH]:
+                anchor_phase = anchor_phase[:,:,:ln]
         
         if MIN_SPEC == a:
             input = np.where(np.abs(inputs[i]) <= np.abs(input), inputs[i], input)
-        if MAX_SPEC == a:
+        elif MAX_SPEC == a:
             input = np.where(np.abs(inputs[i]) >= np.abs(input), inputs[i], input)  
+        elif MIN_SPEC_SMOOTH == a:
+            mag = np.where(np.abs(inputs[i]) <= np.abs(input), np.abs(inputs[i]), np.abs(input))
+            input = mag * anchor_phase
+        elif MAX_SPEC_SMOOTH == a:
+            mag = np.where(np.abs(inputs[i]) >= np.abs(input), np.abs(inputs[i]), np.abs(input))
+            input = mag * anchor_phase
 
     #linear_ensemble
     #input = ensemble_wav(inputs, split_size=1)
@@ -567,6 +580,9 @@ def ensemble_inputs(audio_input, algorithm, is_normalization, wav_type_set, save
     
     if algorithm == AVERAGE:
         output = average_audio(audio_input)
+        samplerate = 44100
+    elif algorithm == AUDIO_AVERAGE_ALIGN:
+        output = average_audio_align(audio_input)
         samplerate = 44100
     else:
         specs = []
@@ -772,6 +788,48 @@ def average_audio(audio):
     waves = waves/len(audio)
 
     return waves
+
+def get_diff_align(a, b):
+    a_mono = np.mean(a, axis=0) if a.ndim == 2 else a
+    b_mono = np.mean(b, axis=0) if b.ndim == 2 else b
+    ln = min(44100, a_mono.shape[0], b_mono.shape[0])
+    corr = np.correlate(a_mono[:ln], b_mono[:ln], "full")
+    diff = corr.argmax() - (ln - 1)
+    return diff
+
+def average_audio_align(audio):
+    waves = []
+    for i in range(len(audio)):
+        wave, _ = librosa.load(audio[i], sr=44100, mono=False)
+        waves.append(wave)
+        
+    base_wave = waves[0]
+    aligned_waves = [base_wave]
+    
+    for i in range(1, len(waves)):
+        wav2 = waves[i]
+        diff = get_diff_align(base_wave.T, wav2.T)
+        
+        if diff > 0:
+            zeros_to_append = np.zeros((2, diff))
+            wav2_aligned = np.append(zeros_to_append, wav2, axis=1)
+        elif diff < 0:
+            wav2_aligned = wav2[:, -diff:]
+        else:
+            wav2_aligned = wav2
+            
+        aligned_waves.append(wav2_aligned)
+        
+    max_len = max([w.shape[1] for w in aligned_waves])
+    final_waves = []
+    for w in aligned_waves:
+        if w.shape[1] < max_len:
+            padding = max_len - w.shape[1]
+            w = np.pad(w, ((0,0), (0,padding)), 'constant', constant_values=0)
+        final_waves.append(w)
+        
+    waves_sum = sum(final_waves)
+    return waves_sum / len(audio)
     
 def average_dual_sources(wav_1, wav_2, value):
     
@@ -1160,26 +1218,41 @@ def time_correction(mix:np.ndarray, instrumental:np.ndarray, seconds_length, ali
           
     return sub
 
-def ensemble_wav(waveforms, split_size=240):
-    # Create a dictionary to hold the thirds of each waveform and their mean absolute values
-    waveform_thirds = {i: np.array_split(waveform, split_size) for i, waveform in enumerate(waveforms)}
-
-    # Initialize the final waveform
-    final_waveform = []
-
-    # For chunk
+def ensemble_wav(waveforms, split_size=240, crossfade_samples=1024):
+    chunk_lengths = [len(c) for c in np.array_split(waveforms[0], split_size)]
+    boundaries = [0] + list(np.cumsum(chunk_lengths))
+    
+    final_waveform = np.zeros_like(waveforms[0])
+    prev_min_index = 0
+    
     for third_idx in range(split_size):
-        # Compute the mean absolute value of each third from each waveform
-        means = [np.abs(waveform_thirds[i][third_idx]).mean() for i in range(len(waveforms))]
-
-        # Find the index of the waveform with the lowest mean absolute value for this third
+        start = boundaries[third_idx]
+        end = boundaries[third_idx + 1]
+        
+        means = [np.abs(w[start:end]).mean() for w in waveforms]
         min_index = np.argmin(means)
-
-        # Add the least noisy third to the final waveform
-        final_waveform.append(waveform_thirds[min_index][third_idx])
-
-    # Concatenate all the thirds to create the final waveform
-    final_waveform = np.concatenate(final_waveform)
+        
+        chunk = waveforms[min_index][start:end].copy()
+        
+        if third_idx > 0 and crossfade_samples > 0:
+            fade_len = min(crossfade_samples, len(chunk) // 2)
+            if fade_len > 0:
+                fade_in = np.linspace(0, 1, fade_len)
+                if chunk.ndim == 2:
+                    fade_in = fade_in[:, np.newaxis]
+                
+                chunk[:fade_len] *= fade_in
+                
+                prev_model_tail = waveforms[prev_min_index][start:start+fade_len].copy()
+                fade_out = np.linspace(1, 0, fade_len)
+                if prev_model_tail.ndim == 2:
+                    fade_out = fade_out[:, np.newaxis]
+                prev_model_tail *= fade_out
+                
+                chunk[:fade_len] += prev_model_tail
+            
+        prev_min_index = min_index
+        final_waveform[start:end] = chunk
 
     return final_waveform
 

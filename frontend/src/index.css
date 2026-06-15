@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-uvr-bg: #1a1a24;
+  --color-uvr-panel: #262635;
+  --color-uvr-accent: #00d2ff;
+  --color-uvr-accent-hover: #3a7bd5;
+}
+
+body {
+  background-color: var(--color-uvr-bg);
+  color: white;
+  font-family: 'Inter', system-ui, sans-serif;
+}
