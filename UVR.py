@@ -1843,6 +1843,16 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.queue_treeview.column('method', width=160, anchor='w')
         self.queue_treeview.column('status', width=100, anchor='center')
         
+        def _queue_scroll(event):
+            if event.num == 5 or event.delta < 0:
+                self.queue_treeview.yview_scroll(2, "units")
+            elif event.num == 4 or event.delta > 0:
+                self.queue_treeview.yview_scroll(-2, "units")
+            return "break"
+        self.queue_treeview.bind("<MouseWheel>", _queue_scroll)
+        self.queue_treeview.bind("<Button-4>", _queue_scroll)
+        self.queue_treeview.bind("<Button-5>", _queue_scroll)
+        
 
         
         self.remove_task_button = ttk.Button(queue_buttons_frame, text=REMOVE_TASK_TEXT, command=self.remove_selected_task, width=15)
@@ -6916,7 +6926,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
     def clear_task_queue(self):
         confirm = messagebox.askyesno(
             parent=root,
-            title="Clear Queue",
+            title=CLEAR_QUEUE_TEXT,
             message="Are you sure you want to clear all pending tasks from the queue?"
         )
         if confirm:
@@ -6968,7 +6978,15 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
         for task in self.processing_queue:
             if task.id == task_id:
-                if task.status == TASK_STATUS_PENDING:
+                if task.status == TASK_STATUS_FAILED:
+                    task.status = TASK_STATUS_PENDING
+                    task.is_paused = False
+                    self.update_queue_ui_display()
+                    self.queue_selection_changed()
+                    if not self.is_queue_worker_running:
+                        self.queue_worker_thread = KThread(target=self.queue_worker_loop)
+                        self.queue_worker_thread.start()
+                elif task.status == TASK_STATUS_PENDING:
                     task.is_paused = not task.is_paused
                     self.update_queue_ui_display()
                     self.queue_selection_changed()
@@ -7040,17 +7058,27 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         task_id = item['values'][0]
         
         task_status = None
+        task_obj = None
         for task in self.processing_queue:
             if task.id == task_id:
                 task_status = task.status
+                task_obj = task
                 break
                 
-        if task_status in [TASK_STATUS_RUNNING, TASK_STATUS_COMPLETED, TASK_STATUS_FAILED]:
+        if task_status == TASK_STATUS_FAILED:
+            self.pause_resume_task_button.config(state=tk.NORMAL, image=self.play_img)
+            self.move_up_task_button.config(state=tk.DISABLED)
+            self.move_down_task_button.config(state=tk.DISABLED)
+        elif task_status in [TASK_STATUS_RUNNING, TASK_STATUS_COMPLETED]:
             self.pause_resume_task_button.config(state=tk.DISABLED)
             self.move_up_task_button.config(state=tk.DISABLED)
             self.move_down_task_button.config(state=tk.DISABLED)
         else:
             self.pause_resume_task_button.config(state=tk.NORMAL)
+            if task_obj and task_obj.is_paused:
+                self.pause_resume_task_button.config(image=self.play_img)
+            else:
+                self.pause_resume_task_button.config(image=self.pause_img)
             self.move_up_task_button.config(state=tk.NORMAL)
             self.move_down_task_button.config(state=tk.NORMAL)
 
