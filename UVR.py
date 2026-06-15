@@ -5588,7 +5588,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     # Check mapper first
                     for file_name, names in self.mdx_name_select_MAPPER.items():
                         if model_name in names:
-                            model_path = os.path.join(MDX_MODELS_DIR, file_name)
+                            ext = '' if file_name.endswith((CKPT, '.safetensors', ONNX)) else ONNX
+                            model_path = os.path.join(MDX_MODELS_DIR, f"{file_name}{ext}")
                             break
                     if not model_path:
                         for ext in ['', ONNX, CKPT, '.safetensors']:
@@ -5710,7 +5711,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     
                     if not user_refresh:
                         if not is_beta_version and not self.lastest_version == current_patch:
-                            self.command_Text.write(NEW_UPDATE_FOUND_TEXT(self.lastest_version))
+                            pass # self.command_Text.write(NEW_UPDATE_FOUND_TEXT(self.lastest_version))
 
 
                 is_update_params = self.is_auto_update_model_params if is_start_up else self.is_auto_update_model_params_var.get()
@@ -7144,13 +7145,17 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
         if error:
             error_message_box_text = f'{error_dialouge(error)}{ERROR_OCCURED[1]}'
-            confirm = messagebox.askyesno(parent=root,
-                                             title=ERROR_OCCURED[0],
-                                             message=error_message_box_text)
             
-            if confirm:
-                self.is_confirm_error_var.set(True)
-                self.clear_cache_torch = True
+            def show_error():
+                confirm = messagebox.askyesno(parent=root,
+                                                 title=ERROR_OCCURED[0],
+                                                 message=error_message_box_text)
+                
+                if confirm:
+                    self.is_confirm_error_var.set(True)
+                    self.clear_cache_torch = True
+                    
+            root.after(0, show_error)
 
             self.clear_cache_torch = True
             
@@ -7504,7 +7509,16 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                         self.command_Text.write(f'Ensemble Mode - {current_model.model_basename} - Model {current_model_num}/{len(model)}{NEW_LINES}')
 
                     model_name_text = f'({current_model.model_basename})' if not is_ensemble else ''
-                    self.command_Text.write(base_text + f'{LOADING_MODEL_TEXT} {model_name_text}...')
+                    config_details = ""
+                    if current_model.process_method == MDX_ARCH_TYPE:
+                        overlap_val = current_model.overlap_mdx if not current_model.is_mdx_c else current_model.overlap_mdx23
+                        config_details = f" [Seg: {current_model.mdx_segment_size} | Over: {overlap_val} | TTA: {'Y' if current_model.is_tta else 'N'}]"
+                    elif current_model.process_method == VR_ARCH_TYPE:
+                        config_details = f" [Win: {current_model.window_size} | Agg: {current_model.aggression_setting} | TTA: {'Y' if current_model.is_tta else 'N'}]"
+                    elif current_model.process_method == DEMUCS_ARCH_TYPE:
+                        config_details = f" [Seg: {current_model.segment} | Shift: {current_model.shifts}]"
+
+                    self.command_Text.write(base_text + f'{LOADING_MODEL_TEXT} {model_name_text}{config_details}...')
 
                     set_progress_bar = lambda step, inference_iterations=0:self.process_update_progress(total_files=inputPath_total_len, step=(step + (inference_iterations)))
                     write_to_console = lambda progress_text, base_text=base_text:self.command_Text.write(base_text + progress_text)

@@ -560,7 +560,7 @@ REG_SHIFTS = r'\b^[0-9]*$\b'
 REG_BATCHES = r'\b^([0-9]*?|Default)$\b'
 REG_OVERLAP = r'\b^([0]([.][0-9]{0,6})?|Default)$\b'#r"(Default|[0-9]+(\.[0-9]+)?)"#
 REG_OVERLAP23 = r'\b^([1][0-9]|[2-9][0-9]*|Default)$\b'#r'\b^([2-9][0-9]*?|Default)$\b'
-REG_MDX_SEG = r'\b(?:' + '|'.join([str(num) for num in range(32, 1000001, 32)]) + r')\b'
+REG_MDX_SEG = r'\b(?:Default|' + '|'.join([str(num) for num in range(32, 1000001, 32)]) + r')\b'
 REG_ALIGN = r'^[-+]?[0-9]\d*?$'
 REG_VOL_COMP = r'^\d+\.\d{1,9}$'
 
