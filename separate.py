@@ -396,7 +396,7 @@ class SeperateAttributes:
             sf.write(path, source, samplerate, subtype=self.wav_type_set)
 
             if is_not_ensemble:
-                save_format(path, self.save_format, self.mp3_bit_set, self.is_replaygain)
+                save_format(path, self.save_format, self.mp3_bit_set, self.is_replaygain, input_file_path=self.audio_file)
 
         def save_voc_split_instrumental(stem_name, stem_source, is_inst_invert=False):
             inst_stem_name = "Instrumental (With Lead Vocals)" if stem_name == LEAD_VOCAL_STEM else "Instrumental (With Backing Vocals)"
@@ -1520,20 +1520,55 @@ def rerun_mp3(audio_file, sample_rate=44100):
     return librosa.load(audio_file, duration=track_length, mono=False, sr=sample_rate)[0]
 
 def apply_replaygain(file_path):
-    import subprocess
-    import shutil
-    if shutil.which('loudgain'):
-        try:
-            print(f"Applying ReplayGain to: {file_path}")
-            res = subprocess.run(['loudgain', '-a', '-k', '-s', 'e', file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if res.returncode != 0:
-                print(f"loudgain failed: {res.stderr}")
-        except Exception as e:
-            print(f"Failed to apply ReplayGain: {e}")
-    else:
-        print("Warning: 'loudgain' command-line tool not found. ReplayGain tagging skipped.")
+    try:
+        import pydub
+        import mutagen
+        from mutagen.id3 import ID3, TXXX
+        from mutagen.flac import FLAC
+        import os
+        import math
+        
+        print(f"Applying native ReplayGain to: {file_path}")
+        
+        # Load audio to calculate loudness
+        audio = pydub.AudioSegment.from_file(file_path)
+        
+        # Calculate track gain and peak
+        target_dbfs = -14.0
+        dbfs = audio.dBFS
+        
+        # Handle pure silence
+        if math.isinf(dbfs):
+            track_gain = 0.0
+        else:
+            track_gain = target_dbfs - dbfs
+            
+        track_peak = audio.max / audio.max_possible_amplitude
+        
+        gain_str = f"{track_gain:+.2f} dB"
+        peak_str = f"{track_peak:.6f}"
+        
+        # Apply tags based on file extension
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext == '.mp3':
+            try:
+                tags = ID3(file_path)
+            except mutagen.id3.ID3NoHeaderError:
+                tags = mutagen.id3.ID3()
+            
+            tags.add(TXXX(encoding=3, desc='REPLAYGAIN_TRACK_GAIN', text=gain_str))
+            tags.add(TXXX(encoding=3, desc='REPLAYGAIN_TRACK_PEAK', text=peak_str))
+            tags.save(file_path, v2_version=3)
+        elif ext == '.flac':
+            tags = FLAC(file_path)
+            tags['REPLAYGAIN_TRACK_GAIN'] = gain_str
+            tags['REPLAYGAIN_TRACK_PEAK'] = peak_str
+            tags.save()
+            
+    except Exception as e:
+        print(f"Failed to apply native ReplayGain: {e}")
 
-def save_format(audio_path, save_format, mp3_bit_set, is_replaygain=False):
+def save_format(audio_path, save_format, mp3_bit_set, is_replaygain=False, input_file_path=None):
     
     if not save_format == WAV:
         
@@ -1543,19 +1578,28 @@ def save_format(audio_path, save_format, mp3_bit_set, is_replaygain=False):
         
         musfile = pydub.AudioSegment.from_wav(audio_path)
         
+        tags_dict = {}
+        if input_file_path and os.path.exists(input_file_path):
+            try:
+                from pydub.utils import mediainfo
+                info = mediainfo(input_file_path)
+                tags_dict = info.get('TAG', {})
+            except Exception as e:
+                print(f"Failed to extract metadata: {e}")
+        
         if save_format == FLAC:
             audio_path_flac = audio_path.replace(".wav", ".flac")
-            musfile.export(audio_path_flac, format="flac")  
+            musfile.export(audio_path_flac, format="flac", tags=tags_dict)  
             if is_replaygain:
                 apply_replaygain(audio_path_flac)
         
         if save_format == MP3:
             audio_path_mp3 = audio_path.replace(".wav", ".mp3")
             try:
-                musfile.export(audio_path_mp3, format="mp3", bitrate=mp3_bit_set, codec="libmp3lame")
+                musfile.export(audio_path_mp3, format="mp3", bitrate=mp3_bit_set, codec="libmp3lame", tags=tags_dict)
             except Exception as e:
                 print(e)
-                musfile.export(audio_path_mp3, format="mp3", bitrate=mp3_bit_set)
+                musfile.export(audio_path_mp3, format="mp3", bitrate=mp3_bit_set, tags=tags_dict)
             if is_replaygain:
                 apply_replaygain(audio_path_mp3)
         

@@ -1041,7 +1041,8 @@ class AudioTools():
             is_time_correction = True if root.is_time_correction_var.get() else False
         file_text = TIME_TEXT if self.audio_tool == TIME_STRETCH else PITCH_TEXT
         save_path = os.path.join(self.main_export_path, f"{self.is_testing_audio}{audio_file_base}{file_text}.wav")
-        spec_utils.augment_audio(save_path, audio_file, rate, self.is_normalization, self.wav_type_set, self.save_format, is_pitch=is_pitch, is_time_correction=is_time_correction)
+        save_format_ = lambda save_path:save_format(save_path, root.save_format_var.get(), root.mp3_bit_set_var.get(), root.is_replaygain_var.get(), input_file_path=audio_file)
+        spec_utils.augment_audio(save_path, audio_file, rate, self.is_normalization, self.wav_type_set, save_format_, is_pitch=is_pitch, is_time_correction=is_time_correction)
    
 class ToolTip(object):
 
@@ -1810,7 +1811,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.progressbar.place(x=X_PROGRESSBAR_1080P, y=Y_OFFSET_PROGRESS_BAR_1080P, width=WIDTH_PROGRESSBAR_1080P, height=HEIGHT_PROGRESSBAR_1080P,
                             relx=0, rely=0, relwidth=1, relheight=0)
 
-        self.progress_text_var = tk.StringVar(value="")
+        self.progress_text_var = tk.StringVar(value="No Active Processing")
         self.progress_text_Label = tk.Label(master=self, textvariable=self.progress_text_var, font=(MAIN_FONT_NAME, FONT_SIZE_F1, "bold"), fg="#11cf7b", bg="#101014")
         self.progress_text_Label.place(x=X_PROGRESSBAR_1080P, y=Y_OFFSET_PROGRESS_TEXT_1080P, width=WIDTH_PROGRESSBAR_1080P, height=25,
                             relx=0, rely=0, relwidth=1, relheight=0)
@@ -1867,7 +1868,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.move_down_task_button = ttk.Button(queue_buttons_frame, image=self.down_img, command=self.move_task_down)
         self.move_down_task_button.pack(side="left", padx=5)
         
-        self.clear_queue_button = ttk.Button(queue_buttons_frame, text=CLEAR_QUEUE_TEXT, command=self.clear_task_queue, width=15)
+        self.clear_queue_button = ttk.Button(queue_buttons_frame, text=CLEAR_PENDING_TEXT, command=self.clear_task_queue, width=15)
         self.clear_queue_button.pack(side="right", padx=5)
         
         self.chime_toggle_button = ttk.Button(queue_buttons_frame, text=CHIME_ON_TEXT if self.is_task_complete_var.get() else CHIME_OFF_TEXT, command=self.toggle_chime, width=3)
@@ -2370,13 +2371,15 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         style.configure('TRadiobutton', foreground='#F6F6F7')
         gui_data.sv_ttk.set_theme("dark", MAIN_FONT_NAME, 10, fg_color_set=fg_color_set)
 
-    def show_file_dialog(self, text='Select Audio files', dialoge_type=None):
-        parent_win = root
+    def show_file_dialog(self, text='Select Audio files', dialoge_type=None, parent_win=None):
+        if parent_win is None:
+            parent_win = root
         is_linux = not is_windows and not is_macos
         
         if is_linux:
             self.linux_filebox_fix()
-            top = tk.Toplevel(root)
+            top = tk.Toplevel(parent_win)
+            top.attributes('-topmost', 'true')
             top.withdraw()
             top.protocol("WM_DELETE_WINDOW", lambda: None)
             parent_win = top
@@ -2420,17 +2423,20 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             
         return filenames
 
-    def input_select_filedialog(self):
+    def input_select_filedialog(self, parent_win=None, is_append=False):
         """Make user select music files"""
 
         if self.lastDir is not None:
             if not os.path.isdir(self.lastDir):
                 self.lastDir = None
 
-        paths = self.show_file_dialog(dialoge_type=MAIN_MULTIPLE_FILE)
+        paths = self.show_file_dialog(dialoge_type=MAIN_MULTIPLE_FILE, parent_win=parent_win)
 
         if paths:  # Path selected
-            self.inputPaths = paths
+            if is_append:
+                self.inputPaths = tuple(list(self.inputPaths) + list(paths))
+            else:
+                self.inputPaths = paths
             
             self.process_input_selections()
             self.update_inputPaths()
@@ -3121,7 +3127,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         def input_options(is_select_inputs=True):
             input_info_text_var.set('')
             if is_select_inputs:
-                self.input_select_filedialog()
+                menu_view_inputs_top.withdraw()
+                self.input_select_filedialog(parent_win=menu_view_inputs_top, is_append=True)
+                menu_view_inputs_top.deiconify()
             else:
                 self.inputPaths = ()
             reset_list()
@@ -3223,6 +3231,25 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 finally:
                     right_click_menu.grab_release()
 
+        def move_selected_input(direction):
+            selected = input_files_listbox_Option.curselection()
+            if not selected:
+                return
+            idx = selected[0]
+            new_idx = idx + direction
+            if new_idx < 0 or new_idx >= len(self.inputPaths):
+                return
+            
+            paths_list = list(self.inputPaths)
+            paths_list[idx], paths_list[new_idx] = paths_list[new_idx], paths_list[idx]
+            self.inputPaths = tuple(paths_list)
+            
+            reset_list()
+            input_files_listbox_Option.selection_set(new_idx)
+            input_files_listbox_Option.activate(new_idx)
+            input_files_listbox_Option.see(new_idx)
+            self.update_inputPaths()
+
         menu_view_inputs_Frame = self.menu_FRAME_SET(menu_view_inputs_top)
         menu_view_inputs_Frame.grid(row=0)  
 
@@ -3230,7 +3257,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         tk.Label(menu_view_inputs_Frame, textvariable=input_length_var, font=(MAIN_FONT_NAME, f"{FONT_SIZE_1}"), foreground=FG_COLOR).grid(row=1, column=0, padx=0, pady=MENU_PADDING_1)
         if not OPERATING_SYSTEM == "Linux":
             ttk.Button(menu_view_inputs_Frame, text=SELECT_INPUTS, command=lambda:input_options()).grid(row=2,column=0,padx=0,pady=MENU_PADDING_2)
-        input_files_listbox_Option = tk.Listbox(menu_view_inputs_Frame, selectmode=tk.EXTENDED, activestyle='dotbox', font=(MAIN_FONT_NAME, f"{FONT_SIZE_1}"), background='#101414', exportselection=0, width=110, height=17, relief=tk.SOLID, borderwidth=0)
+        input_files_listbox_Option = tk.Listbox(menu_view_inputs_Frame, selectmode=tk.EXTENDED, activestyle='dotbox', font=(MAIN_FONT_NAME, f"{FONT_SIZE_1}"), background='#101414', exportselection=0, width=150, height=20, relief=tk.SOLID, borderwidth=0)
         input_files_listbox_vertical_scroll = ttk.Scrollbar(menu_view_inputs_Frame, orient=tk.VERTICAL)
         input_files_listbox_Option.config(yscrollcommand=input_files_listbox_vertical_scroll.set)
         input_files_listbox_vertical_scroll.configure(command=input_files_listbox_Option.yview)
@@ -3238,10 +3265,13 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         input_files_listbox_vertical_scroll.grid(row=4, column=1, sticky=tk.NS)
 
         tk.Label(menu_view_inputs_Frame, textvariable=input_info_text_var, font=(MAIN_FONT_NAME, f"{FONT_SIZE_1}"), foreground=FG_COLOR).grid(row=5, column=0, padx=0, pady=0)
-        ttk.Checkbutton(menu_view_inputs_Frame, text=WIDEN_BOX, variable=is_widen_box_var, command=lambda:box_size()).grid(row=6,column=0,padx=0,pady=0)
-        verify_audio_Button = ttk.Button(menu_view_inputs_Frame, textvariable=varification_text_var, command=lambda:verify_audio_start_thread())
-        verify_audio_Button.grid(row=7,column=0,padx=0,pady=MENU_PADDING_1)
-        ttk.Button(menu_view_inputs_Frame, text=CLOSE_WINDOW, command=lambda:menu_view_inputs_top.destroy()).grid(row=8,column=0,padx=0,pady=MENU_PADDING_1)
+        inputs_buttons_frame = tk.Frame(menu_view_inputs_Frame, bg='#101414')
+        inputs_buttons_frame.grid(row=6, column=0, pady=MENU_PADDING_1)
+        
+        ttk.Button(inputs_buttons_frame, text="Add New Files", command=lambda:input_options(is_select_inputs=True), width=15).pack(side="left", padx=5)
+        ttk.Button(inputs_buttons_frame, text="Remove Selected", command=lambda:selected_files(is_remove=True), width=15).pack(side="left", padx=5)
+        ttk.Button(inputs_buttons_frame, image=self.up_img, command=lambda: move_selected_input(-1)).pack(side="left", padx=5)
+        ttk.Button(inputs_buttons_frame, image=self.down_img, command=lambda: move_selected_input(1)).pack(side="left", padx=5)
 
         if is_dnd_compatible:
             menu_view_inputs_top.drop_target_register(DND_FILES)
@@ -6815,17 +6845,18 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 self.error_dialoge(error_msg)
                 return
 
-        # Increment counter
-        self.queue_task_counter += 1
-        
-        # Instantiate QueueTask snapshotting the current GUI/Model state
-        task = QueueTask(self.queue_task_counter, self)
-        
-        # Append to queue
-        self.processing_queue.append(task)
-        
-        # Notify user in console
-        self.command_Text.write(f"Task #{task.id} added to the processing queue.\n")
+        if self.chosen_process_method_var.get() == AUDIO_TOOLS and self.chosen_audio_tool_var.get() in [ALIGN_INPUTS, MATCH_INPUTS]:
+            self.queue_task_counter += 1
+            task = QueueTask(self.queue_task_counter, self)
+            self.processing_queue.append(task)
+            self.command_Text.write(f"Task #{task.id} added to the processing queue.\n")
+        else:
+            for input_path in self.inputPaths:
+                self.queue_task_counter += 1
+                task = QueueTask(self.queue_task_counter, self)
+                task.input_paths = (input_path,)
+                self.processing_queue.append(task)
+                self.command_Text.write(f"Task #{task.id} added to the processing queue.\n")
         
         # Update Treeview if settings window is open
         self.update_queue_ui_display()
@@ -6917,7 +6948,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     finally:
                         self.is_process_stopped = True
                         self.command_Text.write(PROCESS_STOPPED_BY_USER)
-                        task_to_remove.status = TASK_STATUS_FAILED
+                        if task_to_remove in self.processing_queue:
+                            self.processing_queue.remove(task_to_remove)
+                        self.update_queue_ui_display()
         else:
             if task_to_remove in self.processing_queue:
                 self.processing_queue.remove(task_to_remove)
@@ -6926,7 +6959,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
     def clear_task_queue(self):
         confirm = messagebox.askyesno(
             parent=root,
-            title=CLEAR_QUEUE_TEXT,
+            title=CLEAR_PENDING_TEXT,
             message="Are you sure you want to clear all pending tasks from the queue?"
         )
         if confirm:
@@ -6941,10 +6974,6 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     self.queue_treeview.delete(item)
                 # Populate with all tasks (new-old order, newest at top)
                 for task in reversed(list(self.processing_queue)):
-                    inputs_str = ", ".join(os.path.basename(p) for p in task.input_paths)
-                    if len(task.input_paths) > 2:
-                        inputs_str = f"{len(task.input_paths)} files: " + ", ".join(os.path.basename(p) for p in task.input_paths[:2]) + "..."
-                    
                     if task.process_method == AUDIO_TOOLS:
                         method_str = task.chosen_audio_tool
                     else:
@@ -6964,7 +6993,13 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     status_str = task.status
                     if task.is_paused and task.status == TASK_STATUS_PENDING:
                         status_str = TASK_STATUS_PAUSED
-                    self.queue_treeview.insert('', tk.END, values=(task.id, inputs_str, method_str, status_str))
+                        
+                    if not task.input_paths:
+                        self.queue_treeview.insert('', tk.END, values=(task.id, "No Inputs", method_str, status_str))
+                    else:
+                        parent = self.queue_treeview.insert('', tk.END, values=(task.id, os.path.basename(task.input_paths[0]), method_str, status_str), open=True)
+                        for p in task.input_paths[1:]:
+                            self.queue_treeview.insert(parent, tk.END, values=(task.id, os.path.basename(p), "", ""))
         self.after(0, _update)
 
     def pause_resume_selected_task(self):
@@ -6986,6 +7021,13 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     if not self.is_queue_worker_running:
                         self.queue_worker_thread = KThread(target=self.queue_worker_loop)
                         self.queue_worker_thread.start()
+                elif task.status == TASK_STATUS_RUNNING:
+                    self.is_process_paused = not getattr(self, 'is_process_paused', False)
+                    task.is_paused = self.is_process_paused
+                    if self.is_process_paused:
+                        self.progress_text_var.set("Process Paused...")
+                    self.update_queue_ui_display()
+                    self.queue_selection_changed()
                 elif task.status == TASK_STATUS_PENDING:
                     task.is_paused = not task.is_paused
                     self.update_queue_ui_display()
@@ -7069,7 +7111,15 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.pause_resume_task_button.config(state=tk.NORMAL, image=self.play_img)
             self.move_up_task_button.config(state=tk.DISABLED)
             self.move_down_task_button.config(state=tk.DISABLED)
-        elif task_status in [TASK_STATUS_RUNNING, TASK_STATUS_COMPLETED]:
+        elif task_status == TASK_STATUS_RUNNING:
+            self.pause_resume_task_button.config(state=tk.NORMAL)
+            if getattr(self, 'is_process_paused', False):
+                self.pause_resume_task_button.config(image=self.play_img)
+            else:
+                self.pause_resume_task_button.config(image=self.pause_img)
+            self.move_up_task_button.config(state=tk.DISABLED)
+            self.move_down_task_button.config(state=tk.DISABLED)
+        elif task_status == TASK_STATUS_COMPLETED:
             self.pause_resume_task_button.config(state=tk.DISABLED)
             self.move_up_task_button.config(state=tk.DISABLED)
             self.move_down_task_button.config(state=tk.DISABLED)
@@ -7093,7 +7143,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.auto_save()
         self.conversion_Button_Text_var.set(WAIT_PROCESSING)
         self.conversion_Button.configure(state=tk.DISABLED)
-        self.progress_text_var.set("")
+        self.progress_text_var.set("No Active Processing")
         self.command_Text.clear()
 
     def process_button_queue_mode(self):
@@ -7102,7 +7152,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.command_Text.clear()
         # Button stays NORMAL — user can click it again to enqueue more tasks
         self.conversion_Button_Text_var.set(START_PROCESSING)
-        self.progress_text_var.set("")
+        self.progress_text_var.set("No Active Processing")
         self.conversion_Button.configure(state=tk.NORMAL)
 
     def process_get_baseText(self, total_files, file_num, is_dual=False):
@@ -7118,7 +7168,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
     def process_update_progress(self, total_files, step: float = 1):
         """Calculate the progress for the progress widget in the GUI"""
-        
+        while getattr(self, 'is_process_paused', False):
+            import time
+            time.sleep(0.1)
+            
         total_count = self.true_model_count * total_files
         base = (100 / total_count)
         progress = base * self.iteration - base
@@ -7551,19 +7604,36 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     set_progress_bar = lambda step, inference_iterations=0:self.process_update_progress(total_files=inputPath_total_len, step=(step + (inference_iterations)))
                     write_to_console = lambda progress_text, base_text=base_text:self.command_Text.write(base_text + progress_text)
 
-                    audio_file_base = f"{file_num}_{os.path.splitext(os.path.basename(audio_file))[0]}"
-                    audio_file_base = audio_file_base if not (task.is_testing_audio if task else self.is_testing_audio_var.get()) or is_ensemble else f"{round(time.time())}_{audio_file_base}"
-                    audio_file_base = audio_file_base if not is_ensemble else f"{audio_file_base}_{current_model.model_basename}"
-                    if not is_ensemble:
-                        audio_file_base = audio_file_base if not (task.is_add_model_name if task else self.is_add_model_name_var.get()) else f"{audio_file_base}_{current_model.model_basename}"
-
+                    current_export_path = export_path
                     if (task.is_create_model_folder if task else self.is_create_model_folder_var.get()) and not is_ensemble:
-                        export_path = os.path.join(Path(task.export_path if task else self.export_path_var.get()), current_model.model_basename, os.path.splitext(os.path.basename(audio_file))[0])
-                        if not os.path.isdir(export_path):os.makedirs(export_path) 
+                        current_export_path = os.path.join(Path(task.export_path if task else self.export_path_var.get()), current_model.model_basename, os.path.splitext(os.path.basename(audio_file))[0])
+                        if not os.path.isdir(current_export_path):os.makedirs(current_export_path) 
+
+                    import glob
+                    base_name_original = os.path.splitext(os.path.basename(audio_file))[0]
+                    audio_file_base = base_name_original
+                    counter = 1
+                    
+                    while True:
+                        temp_base = audio_file_base
+                        if (task.is_testing_audio if task else self.is_testing_audio_var.get()) and not is_ensemble:
+                            temp_base = f"{round(time.time())}_{temp_base}"
+                        if is_ensemble:
+                            temp_base = f"{temp_base}_{current_model.model_basename}"
+                        elif (task.is_add_model_name if task else self.is_add_model_name_var.get()):
+                            temp_base = f"{temp_base}_{current_model.model_basename}"
+                            
+                        existing = glob.glob(os.path.join(current_export_path, f"{temp_base}*"))
+                        if not existing:
+                            audio_file_base = temp_base
+                            break
+                            
+                        audio_file_base = f"{base_name_original}_{counter}"
+                        counter += 1
 
                     process_data = {
                                     'model_data': current_model, 
-                                    'export_path': export_path,
+                                    'export_path': current_export_path,
                                     'audio_file_base': audio_file_base,
                                     'audio_file': audio_file,
                                     'set_progress_bar': set_progress_bar,
@@ -8142,11 +8212,22 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 return
 
             if self.thread_check(self.active_processing_thread):
-                if self.is_process_stopped: 
-                    self.error_dialoge(EXIT_HALTED_PROCESS_ERROR)
+                confirm = messagebox.askyesno(
+                    parent=self,
+                    title="Active Process",
+                    message="A process is currently running. Are you sure you want to exit? This will stop the active process and clear the queue."
+                )
+                if confirm:
+                    try:
+                        self.active_processing_thread.terminate()
+                    except Exception:
+                        pass
+                    self.is_process_stopped = True
+                    self.processing_queue.clear()
+                    if hasattr(self, 'update_queue_ui_display'):
+                        self.update_queue_ui_display()
                 else:
-                    self.error_dialoge(EXIT_PROCESS_ERROR)
-                return
+                    return
             
             remove_temps(ENSEMBLE_TEMP_PATH)
             remove_temps(SAMPLE_CLIP_PATH)

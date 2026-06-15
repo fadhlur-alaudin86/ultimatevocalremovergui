@@ -90,11 +90,12 @@ def normalize(wave, is_normalize=False):
     """Normalize audio"""
 
     maxv = np.abs(wave).max()
-    if maxv > 1.0:
-        if is_normalize:
-            print("Above clipping threshold.")
-            wave /= maxv
-    
+    if is_normalize and maxv > 0:
+        wave = wave / maxv * 0.99
+    elif maxv > 1.0:
+        print("Above clipping threshold.")
+        wave = wave / maxv * 0.99
+        
     return wave
     
 def auto_transpose(audio_array:np.ndarray):
