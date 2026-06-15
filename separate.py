@@ -88,6 +88,9 @@ class SeperateAttributes:
             self.audio_file = process_data['audio_file']
             self.audio_file_base = process_data['audio_file_base']
             self.audio_file_base_voc_split = None
+        # original_audio_file is the unmodified input (before sample mode crop)
+        # fall back to audio_file when not present (vocal_stem_path mode)
+        self.original_audio_file = process_data.get('original_audio_file', self.audio_file)
         self.export_path = process_data['export_path']
         self.cached_source_callback = process_data['cached_source_callback']
         self.cached_model_source_holder = process_data['cached_model_source_holder']
@@ -396,7 +399,7 @@ class SeperateAttributes:
             sf.write(path, source, samplerate, subtype=self.wav_type_set)
 
             if is_not_ensemble:
-                save_format(path, self.save_format, self.mp3_bit_set, self.is_replaygain, input_file_path=self.audio_file)
+                save_format(path, self.save_format, self.mp3_bit_set, self.is_replaygain, input_file_path=self.original_audio_file)
 
         def save_voc_split_instrumental(stem_name, stem_source, is_inst_invert=False):
             inst_stem_name = "Instrumental (With Lead Vocals)" if stem_name == LEAD_VOCAL_STEM else "Instrumental (With Backing Vocals)"
@@ -1572,34 +1575,48 @@ def save_format(audio_path, save_format, mp3_bit_set, is_replaygain=False, input
     
     if not save_format == WAV:
         
+        FFMPEG_PATH = 'ffmpeg'
         if OPERATING_SYSTEM == 'Darwin':
             FFMPEG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ffmpeg')
             pydub.AudioSegment.converter = FFMPEG_PATH
         
-        musfile = pydub.AudioSegment.from_wav(audio_path)
-        
-        tags_dict = {}
-        if input_file_path and os.path.exists(input_file_path):
-            try:
-                from pydub.utils import mediainfo
-                info = mediainfo(input_file_path)
-                tags_dict = info.get('TAG', {})
-            except Exception as e:
-                print(f"Failed to extract metadata: {e}")
+        has_input_file = input_file_path and os.path.exists(input_file_path)
         
         if save_format == FLAC:
             audio_path_flac = audio_path.replace(".wav", ".flac")
-            musfile.export(audio_path_flac, format="flac", tags=tags_dict)  
+            if has_input_file:
+                import subprocess
+                cmd = [FFMPEG_PATH, '-y', '-i', audio_path, '-i', input_file_path, '-map', '0:a', '-map', '1:v?', '-map_metadata', '1', '-c:v', 'copy', '-c:a', 'flac', audio_path_flac]
+                try:
+                    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                except Exception as e:
+                    print(f"FFmpeg FLAC export failed: {e}")
+                    pydub.AudioSegment.from_wav(audio_path).export(audio_path_flac, format="flac")
+            else:
+                pydub.AudioSegment.from_wav(audio_path).export(audio_path_flac, format="flac")
+                
             if is_replaygain:
                 apply_replaygain(audio_path_flac)
         
         if save_format == MP3:
             audio_path_mp3 = audio_path.replace(".wav", ".mp3")
-            try:
-                musfile.export(audio_path_mp3, format="mp3", bitrate=mp3_bit_set, codec="libmp3lame", tags=tags_dict)
-            except Exception as e:
-                print(e)
-                musfile.export(audio_path_mp3, format="mp3", bitrate=mp3_bit_set, tags=tags_dict)
+            if has_input_file:
+                import subprocess
+                cmd = [FFMPEG_PATH, '-y', '-i', audio_path, '-i', input_file_path, '-map', '0:a', '-map', '1:v?', '-map_metadata', '1', '-c:v', 'copy', '-c:a', 'libmp3lame', '-b:a', mp3_bit_set, '-id3v2_version', '3', audio_path_mp3]
+                try:
+                    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                except Exception as e:
+                    print(f"FFmpeg MP3 export failed: {e}")
+                    try:
+                        pydub.AudioSegment.from_wav(audio_path).export(audio_path_mp3, format="mp3", bitrate=mp3_bit_set, codec="libmp3lame")
+                    except:
+                        pydub.AudioSegment.from_wav(audio_path).export(audio_path_mp3, format="mp3", bitrate=mp3_bit_set)
+            else:
+                try:
+                    pydub.AudioSegment.from_wav(audio_path).export(audio_path_mp3, format="mp3", bitrate=mp3_bit_set, codec="libmp3lame")
+                except:
+                    pydub.AudioSegment.from_wav(audio_path).export(audio_path_mp3, format="mp3", bitrate=mp3_bit_set)
+                    
             if is_replaygain:
                 apply_replaygain(audio_path_mp3)
         

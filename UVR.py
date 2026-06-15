@@ -7573,6 +7573,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 base_text = self.process_get_baseText(total_files=inputPath_total_len, file_num=file_num)
 
                 if self.verify_audio(audio_file):
+                    original_audio_file = audio_file
                     audio_file = self.create_sample(audio_file) if is_model_sample_mode else audio_file
                     self.command_Text.write(f'{NEW_LINE if not file_num ==1 else NO_LINE}{base_text}"{os.path.basename(audio_file)}\".{NEW_LINES}')
                     is_verified_audio = True
@@ -7644,7 +7645,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                                     'list_all_models': self.all_models,
                                     'is_ensemble_master': is_ensemble,
                                     'is_half_precision': getattr(task, 'is_half_precision', self.is_half_precision_var.get()) if task else self.is_half_precision_var.get(),
-                                    'is_4_stem_ensemble': True if (task.ensemble_main_stem if task else self.ensemble_main_stem_var.get()) in [FOUR_STEM_ENSEMBLE, MULTI_STEM_ENSEMBLE] and is_ensemble else False}
+                                    'is_4_stem_ensemble': True if (task.ensemble_main_stem if task else self.ensemble_main_stem_var.get()) in [FOUR_STEM_ENSEMBLE, MULTI_STEM_ENSEMBLE] and is_ensemble else False,
+                                    'original_audio_file': original_audio_file}
                     
                     if current_model.process_method == VR_ARCH_TYPE:
                         seperator = SeperateVR(current_model, process_data)
