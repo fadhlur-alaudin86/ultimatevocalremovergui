@@ -15,6 +15,7 @@ gui_data/cr_text.txt
 # Temp directories
 temp_sample_clips/
 ensemble_temps/
+tmp/
 
 # Temp lock
 *.lock
