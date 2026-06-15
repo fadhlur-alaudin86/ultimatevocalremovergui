@@ -129,3 +129,13 @@ typing_extensions==4.15.0
 urllib3==2.7.0
 wget==3.2
 yarl==1.24.2
+
+# --- Optional Dependencies for Advanced Models ---
+# SCNet: No additional dependencies required (uses standard PyTorch).
+# Bandit: Requires torchaudio.
+# torchaudio==2.1.2
+# Mamba2: Requires mamba_ssm, causal-conv1d, rotary_embedding_torch, beartype.
+# mamba_ssm==2.2.2
+# causal-conv1d==1.4.0
+# rotary_embedding_torch==0.6.5
+# beartype==0.18.5

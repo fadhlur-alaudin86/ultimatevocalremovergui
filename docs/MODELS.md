@@ -68,7 +68,15 @@ Berikut adalah daftar lengkap semua model yang tersedia dan dapat diunduh di apl
 - MDX23C Model: MDX23C-InstVoc HQ
 
 ## Roformer (Tergabung di Kategori MDX-Net pada UVR)
-- Roformer Model: mini-bs-roformer-v2-46.8M
+- Roformer Model: mini-bs-roformer-v2-46.8M (HuggingFace format)
+- Roformer Model: mb-roformer-inst-v2 (Native format)
+- Roformer Model: bs-roformer-viperx (Native format)
+- Serta seluruh model berekstensi YAML dari arsitektur BS-Roformer dan MelBand-Roformer asli.
+
+## Arsitektur Native Lainnya (Tergabung di Kategori MDX-Net pada UVR)
+- SCNet
+- Mamba2
+- Bandit
 
 ## Demucs
 - Demucs v4: htdemucs_ft

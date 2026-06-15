@@ -32,6 +32,19 @@ Ada tiga jenis operasi dasar yang digunakan dalam ensemble UVR:
    - **Efek:** Merupakan metode yang paling natural dan halus. Tidak menyebabkan pemotongan frekuensi/fasa yang ekstrem atau agresif.
    - **Kelemahan:** Jika dua model menghasilkan fase suara yang berlawanan (*out-of-phase*), merata-ratakannya bisa menyebabkan volume suara turun (*phase cancellation*) atau terdengar mendem/tertahan (*comb-filtering*).
 
+4. **Weighted Average (Rata-rata Berbobot)**
+   - Seperti *Audio Average*, namun memungkinkan setiap model memiliki "bobot" atau pengaruh yang berbeda.
+   - **Efek:** Memungkinkan Anda memberikan prioritas lebih tinggi pada model yang terbukti memiliki kualitas vokal lebih jernih (misal 70%), dan menggunakan model lain hanya sebagai pelengkap untuk mengisi detail yang hilang (misal 30%).
+   - **Kelemahan:** Masih rentan terhadap masalah *phase cancellation* jika bobot tidak disetel dengan baik.
+
+5. **Average Align (Rata-rata dengan Penyelarasan)**
+   - Melakukan penyelarasan fasa antar model terlebih dahulu sebelum dirata-rata. Algoritma mencari letak puncak frekuensi dan mencocokkannya.
+   - **Efek:** Memecahkan masalah *phase cancellation* yang sering terjadi pada `Average` biasa. Sangat berguna jika Anda menggabungkan model yang memproses audio dengan tingkat penundaan (latensi) mikroskopis yang berbeda.
+   
+6. **Smooth (Penghalus)**
+   - Meratakan output dengan menghindari transisi nilai yang tiba-tiba (*abrupt changes*). Algoritma menggunakan perata-rataan berbasis rentang/jendela waktu kecil.
+   - **Efek:** Sangat cocok untuk menghilangkan artifak *glitch* digital atau suara "kresek" kecil yang kadang dihasilkan oleh salah satu model. Vokal akan terdengar lebih bulat.
+
 ## Rekomendasi Penggunaan Terbaik
 
 ### 1. Terbaik untuk Vokal Saja (Acapella)

@@ -450,7 +450,8 @@ class ModelData():
         
         mdx_overlap_val = self.ensemble_settings.get('overlap_mdx', root.overlap_mdx_var.get())
         self.overlap_mdx = float(mdx_overlap_val) if mdx_overlap_val != DEFAULT else mdx_overlap_val
-        self.overlap_mdx23 = int(float(self.ensemble_settings.get('overlap_mdx23', root.overlap_mdx23_var.get())))
+        mdx23_overlap_val = self.ensemble_settings.get('overlap_mdx23', root.overlap_mdx23_var.get())
+        self.overlap_mdx23 = int(float(mdx23_overlap_val)) if mdx23_overlap_val != DEFAULT else mdx23_overlap_val
         self.semitone_shift = float(root.semitone_shift_var.get())
         self.is_pitch_change = False if self.semitone_shift == 0 else True
         self.is_match_frequency_pitch = root.is_match_frequency_pitch_var.get()
@@ -582,7 +583,9 @@ class ModelData():
             self.is_secondary_model_activated = root.mdx_is_secondary_model_activate_var.get() if not is_secondary_model else False
             self.margin = int(root.margin_var.get())
             self.chunks = 0
-            self.mdx_segment_size = int(self.ensemble_settings.get('mdx_segment_size', root.mdx_segment_size_var.get()))
+            mdx_segment_size_val = self.ensemble_settings.get('mdx_segment_size', root.mdx_segment_size_var.get())
+            self.mdx_segment_size = int(float(mdx_segment_size_val)) if mdx_segment_size_val != DEFAULT else mdx_segment_size_val
+            self.is_tta = root.is_mdx_tta_var.get()
             self.get_mdx_model_path()
             self.get_model_hash()
             if self.model_hash:
@@ -593,9 +596,12 @@ class ModelData():
                     self.model_data = self.get_model_data(MDX_HASH_DIR, root.mdx_hash_MAPPER)
                 if self.model_data:
                     
+                    self.is_roformer = self.model_data.get("is_roformer", False)
+                    self.is_scnet = self.model_data.get("is_scnet", False)
+                    self.is_mamba2 = self.model_data.get("is_mamba2", False)
+                    self.is_bandit = self.model_data.get("is_bandit", False)
                     if "config_yaml" in self.model_data:
                         self.is_mdx_c = True
-                        self.is_roformer = self.model_data.get("is_roformer", False)
                         config_path = os.path.join(MDX_C_CONFIG_PATH, self.model_data["config_yaml"])
                         if os.path.isfile(config_path):
                             with open(config_path) as f:
@@ -639,6 +645,7 @@ class ModelData():
 
         if self.process_method == DEMUCS_ARCH_TYPE:
             self.is_secondary_model_activated = root.demucs_is_secondary_model_activate_var.get() if not is_secondary_model else False
+            self.is_tta = root.is_demucs_tta_var.get()
             if not self.is_ensemble_mode:
                 self.pre_proc_model_activated = root.is_demucs_pre_proc_model_activate_var.get() if not root.demucs_stems_var.get() in [VOCAL_STEM, INST_STEM] else False
             self.margin_demucs = int(root.margin_demucs_var.get())
@@ -892,7 +899,23 @@ class Ensembler():
         #print("get_files_to_ensemble: ", stem_outputs)
         
         if len(stem_outputs) > 1:
-            spec_utils.ensemble_inputs(stem_outputs, algorithm, self.is_normalization, self.wav_type_set, stem_save_path, is_wave=self.is_wav_ensemble)
+            weights = None
+            if algorithm == WEIGHTED_AVERAGE:
+                weights = []
+                selected_models = root.ensemble_listbox_get_all_selected_models()
+                model_basenames_map = {ModelData(m, is_change_def=False).model_basename: float(root.ensemble_model_settings.get(m, {}).get("weight", 10)) for m in selected_models}
+                for f in stem_outputs:
+                    f_base = os.path.basename(f)
+                    prefix = f"{audio_file_base}_"
+                    suffix = f"_({stem_tag}).wav"
+                    m_name = f_base
+                    if f_base.startswith(prefix):
+                        m_name = m_name[len(prefix):]
+                    if m_name.endswith(suffix):
+                        m_name = m_name[:-len(suffix)]
+                    weights.append(model_basenames_map.get(m_name, 10.0))
+                    
+            spec_utils.ensemble_inputs(stem_outputs, algorithm, self.is_normalization, self.wav_type_set, stem_save_path, is_wave=self.is_wav_ensemble, weights=weights)
             save_format(stem_save_path, self.save_format, self.mp3_bit_set, root.is_replaygain_var.get())
         
         if self.is_save_all_outputs_ensemble:
@@ -1955,7 +1978,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         # MDX-Segment Size
         self.mdx_segment_size_Label = self.main_window_LABEL_SET(self.options_Frame, SEGMENT_MDX_MAIN_LABEL)
         self.mdx_segment_size_Label_place = lambda:self.mdx_segment_size_Label.place(x=MAIN_ROW_X[0], y=MAIN_ROW_Y[0], width=0, height=LABEL_HEIGHT, relx=1/3, rely=2/self.COL1_ROWS, relwidth=1/3, relheight=1/self.COL2_ROWS)
-        self.mdx_segment_size_Option = ComboBoxEditableMenu(self.options_Frame, values=MDX_SEGMENTS, width=MENU_COMBOBOX_WIDTH, textvariable=self.mdx_segment_size_var, pattern=REG_MDX_SEG, default="256")#
+        self.mdx_segment_size_Option = ComboBoxEditableMenu(self.options_Frame, values=MDX_SEGMENTS, width=MENU_COMBOBOX_WIDTH, textvariable=self.mdx_segment_size_var, pattern=REG_MDX_SEG, default="Default")#
         self.mdx_segment_size_Option_place = lambda:self.mdx_segment_size_Option.place(x=MAIN_ROW_X[1], y=MAIN_ROW_Y[1], width=MAIN_ROW_WIDTH, height=OPTION_HEIGHT, relx=1/3, rely=3/self.COL1_ROWS, relwidth=1/3, relheight=1/self.COL2_ROWS)
         self.help_hints(self.mdx_segment_size_Label, text=MDX_SEGMENT_SIZE_HELP)
 
@@ -3811,6 +3834,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         is_invert_spec_Option.grid()
         self.help_hints(is_invert_spec_Option, text=IS_INVERT_SPEC_HELP)
         
+        is_demucs_tta_Option = ttk.Checkbutton(demucs_frame, text=ENABLE_TTA_TEXT, width=DEMUCS_CHECKBOXS_WIDTH, variable=self.is_demucs_tta_var) 
+        is_demucs_tta_Option.grid()
+        self.help_hints(is_demucs_tta_Option, text=IS_TTA_HELP)
+        
         self.vocal_splitter_Button_opt(demuc_opt, demucs_frame, width=VR_BUT_WIDTH, pady=MENU_PADDING_1)
         
         self.open_demucs_model_dir_Button = ttk.Button(demucs_frame, text=OPEN_MODELS_FOLDER_TEXT, command=lambda:OPEN_FILE_func(DEMUCS_MODELS_DIR), width=VR_BUT_WIDTH)
@@ -3853,7 +3880,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
         mdx_segment_size_Label = self.menu_sub_LABEL_SET(mdx_net_frame, SEGMENT_SIZE_TEXT)
         mdx_segment_size_Label.grid(pady=MENU_PADDING_4)
-        mdx_segment_size_Option = ComboBoxEditableMenu(mdx_net_frame, values=MDX_SEGMENTS, width=MENU_COMBOBOX_WIDTH, textvariable=self.mdx_segment_size_var, pattern=REG_MDX_SEG, default="256")#
+        mdx_segment_size_Option = ComboBoxEditableMenu(mdx_net_frame, values=MDX_SEGMENTS, width=MENU_COMBOBOX_WIDTH, textvariable=self.mdx_segment_size_var, pattern=REG_MDX_SEG, default="Default")#
         mdx_segment_size_Option.grid(pady=MENU_PADDING_4)
         self.help_hints(mdx_segment_size_Label, text=MDX_SEGMENT_SIZE_HELP)
 
@@ -3890,6 +3917,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         is_invert_spec_Option.grid(pady=0)
         self.help_hints(is_invert_spec_Option, text=IS_INVERT_SPEC_HELP)
         
+        is_mdx_tta_Option = ttk.Checkbutton(mdx_net_frame, text=ENABLE_TTA_TEXT, width=MDX_CHECKBOXS_WIDTH, variable=self.is_mdx_tta_var) 
+        is_mdx_tta_Option.grid(pady=0)
+        self.help_hints(is_mdx_tta_Option, text=IS_TTA_HELP)
+        
         self.vocal_splitter_Button_opt(mdx_net_opt, mdx_net_frame, pady=MENU_PADDING_1, width=VR_BUT_WIDTH)
 
         clear_mdx_cache_Button = ttk.Button(mdx_net_frame, text=CLEAR_AUTOSET_CACHE_TEXT, command=lambda:self.clear_cache(MDX_ARCH_TYPE), width=VR_BUT_WIDTH)
@@ -3920,9 +3951,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         overlap_mdx23_Option.grid(pady=MENU_PADDING_1)
         self.help_hints(overlap_mdx23_Label, text=OVERLAP_23_HELP)
         
-        is_mdx_c_seg_def_Option = ttk.Checkbutton(mdx_net23_frame, text=SEGMENT_DEFAULT_TEXT, width=MDX_CHECKBOXS_WIDTH, variable=self.is_mdx_c_seg_def_var) 
-        is_mdx_c_seg_def_Option.grid(pady=0)
-        self.help_hints(is_mdx_c_seg_def_Option, text=IS_SEGMENT_DEFAULT_HELP)
+        # Segment Default Checkbox has been removed and integrated into MDX_SEGMENTS ComboBox
         
         is_mdx_combine_stems_Option = ttk.Checkbutton(mdx_net23_frame, text=COMBINE_STEMS_TEXT, width=MDX_CHECKBOXS_WIDTH, variable=self.is_mdx23_combine_stems_var)
         is_mdx_combine_stems_Option.grid()
@@ -5419,6 +5448,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 r_idx += 1
                 return r_idx
 
+            row_idx = add_option("Weight (Weighted Ensemble)", "weight", [str(i) for i in range(1, 101)], "10", parent_frame, row_idx, full_model_name)
+
             if process_method == MDX_ARCH_TYPE:
                 is_mdx_c = False
                 try:
@@ -5623,15 +5654,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 self.online_data = json.load(urllib.request.urlopen(DOWNLOAD_CHECKS))
                 
                 # Filter out all unwanted Roformer models from online data
-                if isinstance(self.online_data, dict):
-                    if "roformer_download_list" in self.online_data:
-                        self.online_data["roformer_download_list"] = {}
-                    for list_key in ["mdx_download_list", "other_network_list", "other_network_list_new"]:
-                        if list_key in self.online_data and isinstance(self.online_data[list_key], dict):
-                            self.online_data[list_key] = {
-                                k: v for k, v in self.online_data[list_key].items()
-                                if not (("roformer" in k.lower() or "melband" in k.lower() or "ro-" in k.lower() or "mb-" in k.lower()) and "mini-bs-roformer" not in k.lower())
-                            }
+                # (Filter removed to allow all Roformer models)
                 
                 self.is_online = True
 
@@ -5860,16 +5883,6 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                             self.mdx_name_select_MAPPER[filename] = name
 
             self.mdx_name_select_MAPPER["mini-bs-roformer-v2-46.8M.safetensors"] = "Mini-BS-Roformer-V2-46.8M"
-            
-            # Filter out all unwanted Roformer models from the mapper and hash tables
-            self.mdx_name_select_MAPPER = {
-                k: v for k, v in self.mdx_name_select_MAPPER.items()
-                if not (("roformer" in k.lower() or "melband" in k.lower() or "roformer" in v.lower() or "ro-" in v.lower() or "mb-" in v.lower()) and "mini-bs-roformer" not in k.lower() and "mini-bs-roformer" not in v.lower())
-            }
-            self.mdx_hash_MAPPER = {
-                k: v for k, v in self.mdx_hash_MAPPER.items()
-                if not (isinstance(v, dict) and (v.get("is_roformer", False) or "roformer" in str(v.get("config_yaml", "")).lower()) and "mini" not in str(v).lower())
-            }
             
             # Clean up MDX23C prefixes that get pulled from online_data
             for k, v in self.mdx_name_select_MAPPER.items():
@@ -7631,6 +7644,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.batch_size_var = tk.StringVar(value=data['batch_size'])
         self.crop_size_var = tk.StringVar(value=data['crop_size'])
         self.is_tta_var = tk.BooleanVar(value=data['is_tta'])
+        self.is_mdx_tta_var = tk.BooleanVar(value=data.get('is_mdx_tta', False))
+        self.is_demucs_tta_var = tk.BooleanVar(value=data.get('is_demucs_tta', False))
         self.is_output_image_var = tk.BooleanVar(value=data['is_output_image'])
         self.is_post_process_var = tk.BooleanVar(value=data['is_post_process'])
         self.is_high_end_process_var = tk.BooleanVar(value=data['is_high_end_process'])
@@ -7791,7 +7806,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.mdx_segment_size_var.set(loaded_setting['mdx_segment_size'])
             self.batch_size_var.set(loaded_setting['batch_size'])
             self.crop_size_var.set(loaded_setting['crop_size'])
-            self.is_tta_var.set(loaded_setting['is_tta'])
+            if 'is_tta' in loaded_setting:
+                self.is_tta_var.set(loaded_setting['is_tta'])
+                self.is_mdx_tta_var.set(loaded_setting.get('is_mdx_tta', False))
+                self.is_demucs_tta_var.set(loaded_setting.get('is_demucs_tta', False))
             self.is_output_image_var.set(loaded_setting['is_output_image'])
             self.is_post_process_var.set(loaded_setting['is_post_process'])
             self.is_high_end_process_var.set(loaded_setting['is_high_end_process'])
@@ -7947,6 +7965,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             'batch_size': self.batch_size_var.get(),
             'crop_size': self.crop_size_var.get(),
             'is_tta': self.is_tta_var.get(),
+            'is_mdx_tta': self.is_mdx_tta_var.get(),
+            'is_demucs_tta': self.is_demucs_tta_var.get(),
             'is_output_image': self.is_output_image_var.get(),
             'is_post_process': self.is_post_process_var.get(),
             'is_high_end_process': self.is_high_end_process_var.get(),

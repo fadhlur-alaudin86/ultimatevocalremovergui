@@ -47,6 +47,9 @@ MIN_SPEC_SMOOTH = 'Min Spec Smooth'
 MAX_SPEC_SMOOTH = 'Max Spec Smooth'
 AUDIO_AVERAGE_ALIGN = 'Average Align'
 LIN_ENSE = 'Linear Ensemble'
+MEDIAN_SPEC_SMOOTH = 'Median Spec Smooth'
+MEDIAN_WAV_ALIGN = 'Median Align'
+WEIGHTED_AVERAGE = 'Weighted Average'
 
 MAX_WAV = MAX_SPEC
 MIN_WAV = MIN_SPEC
@@ -528,6 +531,14 @@ def invert_stem(mixture, stem):
 
 def ensembling(a, inputs, is_wavs=False): 
 
+    if a == MEDIAN_SPEC_SMOOTH and not is_wavs:
+        ln = min([inp.shape[2] for inp in inputs])
+        inputs_trunc = [inp[:,:,:ln] for inp in inputs]
+        anchor_phase = np.exp(1.j * np.angle(inputs_trunc[0]))
+        inputs_abs = np.array([np.abs(inp) for inp in inputs_trunc])
+        mag = np.median(inputs_abs, axis=0)
+        return mag * anchor_phase
+
     for i in range(1, len(inputs)):
         if i == 1:
             input = inputs[0]
@@ -574,7 +585,7 @@ def ensemble_for_align(waves):
    
     return wav_aligned
     
-def ensemble_inputs(audio_input, algorithm, is_normalization, wav_type_set, save_path, is_wave=False, is_array=False):
+def ensemble_inputs(audio_input, algorithm, is_normalization, wav_type_set, save_path, is_wave=False, is_array=False, weights=None):
 
     wavs_ = []
     
@@ -584,19 +595,29 @@ def ensemble_inputs(audio_input, algorithm, is_normalization, wav_type_set, save
     elif algorithm == AUDIO_AVERAGE_ALIGN:
         output = average_audio_align(audio_input)
         samplerate = 44100
+    elif algorithm == MEDIAN_WAV_ALIGN:
+        output = median_audio_align(audio_input)
+        samplerate = 44100
+    elif algorithm == WEIGHTED_AVERAGE:
+        output = weighted_average_audio(audio_input, weights)
+        samplerate = 44100
     else:
         specs = []
         
         for i in range(len(audio_input)):  
             wave, samplerate = librosa.load(audio_input[i], mono=False, sr=44100)
             wavs_.append(wave)
-            spec = wave if is_wave else wave_to_spectrogram_no_mp(wave)
+            
+            if algorithm in [MIN_SPEC_SMOOTH, MAX_SPEC_SMOOTH, MEDIAN_SPEC_SMOOTH]:
+                spec = wave_to_spectrogram_no_mp(wave)
+            else:
+                spec = wave if is_wave else wave_to_spectrogram_no_mp(wave)
             specs.append(spec)
         
         wave_shapes = [w.shape[1] for w in wavs_]
         target_shape = wavs_[wave_shapes.index(max(wave_shapes))]
         
-        if is_wave:
+        if is_wave and algorithm not in [MIN_SPEC_SMOOTH, MAX_SPEC_SMOOTH, MEDIAN_SPEC_SMOOTH]:
             output = ensembling(algorithm, specs, is_wavs=True)
         else:
             output = spectrogram_to_wave_no_mp(ensembling(algorithm, specs))
@@ -764,6 +785,29 @@ def augment_audio(export_path, audio_file, rate, is_normalization, wav_type_set,
     sf.write(export_path, normalize(wav_mix.T, is_normalization), sr, subtype=wav_type_set)
     save_format(export_path)
     
+def weighted_average_audio(audio, weights):
+    waves = []
+    wave_shapes = []
+    final_waves = []
+
+    for i in range(len(audio)):
+        wave = librosa.load(audio[i], sr=44100, mono=False)
+        waves.append(wave[0])
+        wave_shapes.append(wave[0].shape[1])
+
+    target_shape_index = wave_shapes.index(max(wave_shapes))
+    target_shape = waves[target_shape_index].shape
+
+    for w in waves:
+        wav_target = to_shape(w, target_shape)
+        final_waves.append(wav_target)
+
+    if weights is None or sum(weights) == 0:
+        return sum(final_waves) / len(final_waves)
+
+    weighted_sum = sum(w * weight for w, weight in zip(final_waves, weights))
+    return weighted_sum / sum(weights)
+
 def average_audio(audio):
     
     waves = []
@@ -830,6 +874,40 @@ def average_audio_align(audio):
         
     waves_sum = sum(final_waves)
     return waves_sum / len(audio)
+
+def median_audio_align(audio):
+    waves = []
+    for i in range(len(audio)):
+        wave, _ = librosa.load(audio[i], sr=44100, mono=False)
+        waves.append(wave)
+        
+    base_wave = waves[0]
+    aligned_waves = [base_wave]
+    
+    for i in range(1, len(waves)):
+        wav2 = waves[i]
+        diff = get_diff_align(base_wave.T, wav2.T)
+        
+        if diff > 0:
+            zeros_to_append = np.zeros((2, diff))
+            wav2_aligned = np.append(zeros_to_append, wav2, axis=1)
+        elif diff < 0:
+            wav2_aligned = wav2[:, -diff:]
+        else:
+            wav2_aligned = wav2
+            
+        aligned_waves.append(wav2_aligned)
+        
+    max_len = max([w.shape[1] for w in aligned_waves])
+    final_waves = []
+    for w in aligned_waves:
+        if w.shape[1] < max_len:
+            padding = max_len - w.shape[1]
+            w = np.pad(w, ((0,0), (0,padding)), 'constant', constant_values=0)
+        final_waves.append(w)
+        
+    waves_median = np.median(np.array(final_waves), axis=0)
+    return waves_median
     
 def average_dual_sources(wav_1, wav_2, value):
     

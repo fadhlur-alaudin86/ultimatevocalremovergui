@@ -106,6 +106,9 @@ class SeperateAttributes:
         self.is_mdx_c = model_data.is_mdx_c
         self.mdx_c_configs = model_data.mdx_c_configs
         self.is_roformer = getattr(model_data, 'is_roformer', False)
+        self.is_scnet = getattr(model_data, 'is_scnet', False)
+        self.is_mamba2 = getattr(model_data, 'is_mamba2', False)
+        self.is_bandit = getattr(model_data, 'is_bandit', False)
         self.mdxnet_stem_select = model_data.mdxnet_stem_select
         self.mixer_path = model_data.mixer_path
         self.model_samplerate = model_data.model_samplerate
@@ -595,7 +598,12 @@ class SeperateMDX(SeperateAttributes):
                 for mix_wave in mix_waves:
                     self.running_inference_progress_bar(total_chunks, is_match_mix=is_match_mix)
 
-                    tar_waves = self.run_model(mix_wave, is_match_mix=is_match_mix)
+                    if hasattr(self, 'is_tta') and self.is_tta:
+                        tar_waves_normal = self.run_model(mix_wave, is_match_mix=is_match_mix)
+                        tar_waves_inv = self.run_model(-mix_wave, is_match_mix=is_match_mix)
+                        tar_waves = (tar_waves_normal + (-tar_waves_inv)) / 2
+                    else:
+                        tar_waves = self.run_model(mix_wave, is_match_mix=is_match_mix)
                     
                     if window is not None:
                         tar_waves[..., :chunk_size_actual] *= window 
@@ -748,15 +756,15 @@ class SeperateMDXC(SeperateAttributes):
 
         pitch_fix = lambda s:self.pitch_fix(s, sr_pitched, org_mix)
 
-        if getattr(self, 'is_roformer', False):
+        if getattr(self, 'is_roformer', False) or getattr(self, 'is_scnet', False) or getattr(self, 'is_mamba2', False) or getattr(self, 'is_bandit', False):
             import json
-            from lib_v5.bs_roformer.modeling_bs_roformer import BSRoformerForMaskedEstimation, BSRoformerConfig
+            config_dict = None
             
             # Default to the bundled Mini-BS-Roformer config
             config_path = os.path.join("lib_v5", "bs_roformer", "config.json")
             
             # Try to see if there is a specific config next to the model
-            model_json = self.model_path.replace('.ckpt', '.json').replace('.safetensors', '.json')
+            model_json = self.model_path.replace('.ckpt', '.json').replace('.safetensors', '.json').replace('.pt', '.json')
             if os.path.isfile(model_json):
                 config_path = model_json
             else:
@@ -764,27 +772,93 @@ class SeperateMDXC(SeperateAttributes):
                 model_json_c = os.path.join("models", "MDX_Net_Models", "model_data", "mdx_c_configs", os.path.basename(model_json))
                 if os.path.isfile(model_json_c):
                     config_path = model_json_c
+                elif self.is_mdx_c and self.mdx_c_configs is not None:
+                    config_dict = self.mdx_c_configs
                 
-            with open(config_path) as f:
-                config_dict = json.load(f)
-            config = BSRoformerConfig(**config_dict)
-            model = BSRoformerForMaskedEstimation(config)
+            if config_dict is None:
+                with open(config_path) as f:
+                    if config_path.endswith('.yaml'):
+                        import yaml
+                        from ml_collections import ConfigDict
+                        config_dict = ConfigDict(yaml.load(f, Loader=yaml.FullLoader))
+                    else:
+                        config_dict = json.load(f)
+
+            if getattr(self, 'is_roformer', False):
+                if hasattr(config_dict, 'model') or 'model' in config_dict:
+                    # Native format (Music-Source-Separation-Training)
+                    model_config = getattr(config_dict, 'model', config_dict.get('model', {}))
+                    kwargs = dict(model_config)
+                    if 'freqs_per_bands' in kwargs:
+                        from lib_v5.roformer_native.bs_roformer import BSRoformer
+                        model = BSRoformer(**kwargs)
+                    else:
+                        from lib_v5.roformer_native.mel_band_roformer import MelBandRoformer
+                        model = MelBandRoformer(**kwargs)
+                    S = kwargs.get('num_stems', 1)
+                    hop_length = kwargs.get('stft_hop_length', 441)
+                    audio_config = getattr(config_dict, 'audio', config_dict.get('audio', {}))
+                    wave_chunk_size = audio_config.get('chunk_size', 352800) if audio_config else 352800
+                else:
+                    # HuggingFace format (mini-bs-roformer)
+                    from lib_v5.bs_roformer.modeling_bs_roformer import BSRoformerForMaskedEstimation, BSRoformerConfig
+                    config = BSRoformerConfig(**config_dict)
+                    model = BSRoformerForMaskedEstimation(config)
+                    S = config.num_stems
+                    hop_length = config.stft_hop_length
+                    wave_chunk_size = config.wave_chunk_size
+            elif getattr(self, 'is_scnet', False):
+                from lib_v5.scnet.scnet import SCNet
+                kwargs = dict(config_dict.model)
+                model = SCNet(**kwargs)
+                S = len(kwargs.get('sources', ['vocals', 'other']))
+                hop_length = kwargs.get('hop_size', 1024)
+                wave_chunk_size = config_dict.get('audio', {}).get('chunk_size', 485100) if hasattr(config_dict, 'get') else 485100
+            elif getattr(self, 'is_mamba2', False):
+                try:
+                    from lib_v5.bs_mamba2.bs_mamba2 import BSMamba2Model
+                except ImportError as e:
+                    print(f"Failed to import mamba_ssm for Mamba2 model: {e}")
+                    raise RuntimeError("Mamba2 dependencies are missing. Please install mamba_ssm, causal-conv1d, rotary_embedding_torch, and beartype.")
+                if isinstance(config_dict, dict) and 'model' not in config_dict:
+                    kwargs = config_dict
+                else:
+                    kwargs = dict(config_dict.model)
+                model = BSMamba2Model(**kwargs)
+                S = kwargs.get('num_stems', 1)
+                hop_length = kwargs.get('stft_hop_length', 441)
+                wave_chunk_size = config_dict.get('audio', {}).get('chunk_size', 352800) if hasattr(config_dict, 'get') else 352800
+            elif getattr(self, 'is_bandit', False):
+                try:
+                    import torchaudio
+                except ImportError as e:
+                    print(f"Failed to import torchaudio for Bandit model: {e}")
+                    raise RuntimeError("Bandit dependencies are missing. Please install torchaudio.")
+                from lib_v5.bandit.bandit import Bandit
+                kwargs = dict(config_dict.kwargs)
+                model = Bandit(**kwargs)
+                S = len(kwargs.get('stems', ['vocals', 'other']))
+                hop_length = kwargs.get('hop_length', 512)
+                wave_chunk_size = config_dict.get('audio', {}).get('chunk_size', 384000) if hasattr(config_dict, 'get') else 384000
             
             if self.model_path.endswith('.safetensors'):
                 from lib_v5.safetensors import load_safetensors
                 state_dict = load_safetensors(self.model_path)
             else:
                 state_dict = torch.load(self.model_path, map_location=cpu, weights_only=False)
+                if 'state_dict' in state_dict:
+                    state_dict = state_dict['state_dict']
                 
             model.load_state_dict(state_dict)
             model.to(self.device).eval()
             
             mix_tensor = torch.tensor(mix, dtype=torch.float32).to(self.device)
             
-            S = config.num_stems
-            # Map mdx_segment_size and overlap settings (same pattern as MDXC)
-            chunk_size = min(config.stft_hop_length * (self.mdx_segment_size - 1), config.wave_chunk_size)
-            overlap = self.overlap_mdx23
+            chunk_size = wave_chunk_size if self.mdx_segment_size == 'Default' else min(hop_length * (self.mdx_segment_size - 1), wave_chunk_size)
+            if self.overlap_mdx23 == 'Default':
+                overlap = getattr(config_dict, 'inference', config_dict.get('inference', {})).get('num_overlap', 8) if isinstance(config_dict, dict) or hasattr(config_dict, 'inference') else 8
+            else:
+                overlap = self.overlap_mdx23
             overlap_size = chunk_size // overlap
             fade_size = chunk_size // 10
 
@@ -805,7 +879,12 @@ class SeperateMDXC(SeperateAttributes):
             with torch.no_grad():
                 for i, chunk_batch in enumerate(unfolded.split(self.mdx_batch_size, dim=0)):
                     self.set_progress_bar(0.1 + 0.8 * (i * self.mdx_batch_size / n_chunks))
-                    out = model(chunk_batch).cpu()
+                    if hasattr(self, 'is_tta') and self.is_tta:
+                        out_normal = model(chunk_batch).cpu()
+                        out_inv = model(-chunk_batch).cpu()
+                        out = (out_normal + (-out_inv)) / 2
+                    else:
+                        out = model(chunk_batch).cpu()
                     outputs.append(out)
             batch_out = torch.cat(outputs, dim=0)
             del outputs
@@ -835,7 +914,10 @@ class SeperateMDXC(SeperateAttributes):
                 }
                 return sources
             elif S > 1:
-                sources = {k: pitch_fix(v) if self.is_pitch_change else v for k, v in zip(self.mdx_c_configs.training.instruments, estimated_sources)}
+                instruments = ["Vocals", "Instrumental"]
+                if getattr(self, 'mdx_c_configs', None) is not None and hasattr(self.mdx_c_configs, 'training') and hasattr(self.mdx_c_configs.training, 'instruments'):
+                    instruments = self.mdx_c_configs.training.instruments
+                sources = {k: pitch_fix(v) if self.is_pitch_change else v for k, v in zip(instruments, estimated_sources)}
                 return sources
             else:
                 est_s = estimated_sources[0]
@@ -851,11 +933,14 @@ class SeperateMDXC(SeperateAttributes):
         except Exception as e:
             S = model.module.num_target_instruments
 
-        mdx_segment_size = self.mdx_c_configs.inference.dim_t if self.is_mdx_c_seg_def else self.mdx_segment_size
+        mdx_segment_size = self.mdx_c_configs.inference.dim_t if self.mdx_segment_size == 'Default' else self.mdx_segment_size
         
         batch_size = self.mdx_batch_size
         chunk_size = self.mdx_c_configs.audio.hop_length * (mdx_segment_size - 1)
-        overlap = self.overlap_mdx23
+        if self.overlap_mdx23 == 'Default':
+            overlap = getattr(self.mdx_c_configs, 'inference', self.mdx_c_configs.get('inference', {})).get('num_overlap', 8) if hasattr(self.mdx_c_configs, 'get') or hasattr(self.mdx_c_configs, 'inference') else 8
+        else:
+            overlap = self.overlap_mdx23
 
         hop_size = chunk_size // overlap
         mix_shape = mix.shape[1]
@@ -874,7 +959,13 @@ class SeperateMDXC(SeperateAttributes):
                 self.running_inference_progress_bar(len(batches))
                 device_type_str = self.device.type if not isinstance(self.device, str) else self.device.split(':')[0]
                 with torch.autocast(device_type=device_type_str, dtype=torch.float16, enabled=self.is_half_precision and device_type_str == 'cuda'):
-                    x = model(batch.pin_memory().to(self.device, non_blocking=True))
+                    batch_pin = batch.pin_memory().to(self.device, non_blocking=True)
+                    if hasattr(self, 'is_tta') and self.is_tta:
+                        x_normal = model(batch_pin)
+                        x_inv = model(-batch_pin)
+                        x = (x_normal + (-x_inv)) / 2
+                    else:
+                        x = model(batch_pin)
                 
                 for w in x:
                     X[..., cnt * hop_size : cnt * hop_size + chunk_size] += w

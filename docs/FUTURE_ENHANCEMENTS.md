@@ -19,30 +19,22 @@ Menyediakan dukungan inferensi untuk arsitektur AI terbaru:
 
 ---
 
-## 2. Rencana Implementasi Tahap 1 (Tertunda)
+## 2. Implementasi yang Telah Selesai (Selesai Diimplementasikan)
 
-Rencana di bawah ini adalah eksekusi tahap awal yang telah dianalisis untuk dapat segera dipraktikkan tanpa merombak arsitektur, mencakup penambahan **Median Ensemble** dan **TTA untuk MDX-Net**. (Status: Menunggu eksekusi).
+Beberapa peningkatan dari repositori sumber (Music-Source-Separation-Training) telah berhasil diadaptasi ke dalam UVR:
 
-### `gui_data/constants.py`
-- Tambahkan konstanta `MEDIAN_SPEC_SMOOTH = 'Median Spec Smooth'`.
-- Tambahkan konstanta `MEDIAN_WAV_ALIGN = 'Median Wave Align'`.
-- Masukkan konstanta baru ke dalam tupel `ENSEMBLE_TYPE` dan `MANUAL_ENSEMBLE_OPTIONS`.
-- Tambahkan teks bantuan (GUI tooltip) untuk menjelaskan fitur Median.
+### A. Dukungan Arsitektur Model Native
+UVR kini secara langsung (*native*) mampu membaca dan mengeksekusi model berformat YAML tanpa perlu konversi format HuggingFace:
+- **BS-Roformer & MelBand-Roformer**
+- **SCNet**
+- **Mamba2**
+- **Bandit**
 
-### `lib_v5/spec_utils.py`
-- **Fungsi `ensembling`**: Tambahkan percabangan logika untuk menghitung nilai tengah (`np.median(inputs_abs, axis=0)`) dari magnitudo spektrum, kemudian mengalikannya dengan *anchor phase* dari model utama.
-- **Fungsi `ensemble_inputs`**: Daftarkan perutean untuk `MEDIAN_WAV_ALIGN`.
-- **Fungsi `median_audio_align` (Baru)**: Buat fungsi baru untuk menerapkan pencarian *Median* (nilai tengah) pada gelombang sampel.
+### B. Metode Ensemble yang Lebih Maju
+- **Average Align / Smooth**: Menerapkan algoritma untuk menghaluskan dan meratakan fase sinyal dari beberapa model yang berbeda.
+- **Weighted Ensemble**: Algoritma `Weighted Average` telah diimplementasikan penuh untuk merata-ratakan *output* dari berbagai model sesuai dengan rasio pembobotan (*weights*) yang dikalibrasi oleh pengguna.
 
-### `UVR.py`
-- Buat dan letakkan `is_tta_Option` (Checkbox TTA) di bagian `mdx_opt_frame` agar MDX memiliki opsi TTA yang bisa diaktifkan dari antarmuka pengguna.
-- Simpan dan ikat variabel state `is_tta` tersebut dengan setelan konfigurasi khusus MDX.
+### C. Advanced TTA (Test-Time Augmentation)
+- Opsi **TTA** telah diaktifkan untuk model **MDX-Net / MDX23C**. Saat opsi ini dicentang, UVR akan melakukan inferensi ganda (*normal* dan polaritas terbalik `-batch`), lalu membatalkan anomali audio/glitch dengan menjumlahkan (*destructive interference*) sinyal sebelum diproses ulang menjadi *spectrogram*.
 
-### `separate.py`
-- Pada bagian fungsi `demix()` milik **MDX/MDXC** (saat masuk ke *loop* inferensi `model(batch)`):
-  - Cek jika `self.is_tta` bernilai aktif (True).
-  - Jika aktif, ciptakan tensor baru yang difase-balik (polaritas negatif): `inv_batch = -batch`.
-  - Eksekusi model untuk versi tersebut: `x_inv = model(inv_batch)`.
-  - Gabungkan hasil dengan rata-rata interferensi destruktif: `x = (x - x_inv) * 0.5`.
-
-> **Peringatan Performa**: Mengaktifkan opsi TTA untuk MDX-Net akan meningkatkan kualitas secara signifikan, tetapi mengorbankan waktu pemrosesan yang akan menjadi **dua kali lipat lebih lambat**.
+> **Peringatan Performa**: Mengaktifkan opsi TTA untuk MDX-Net akan meningkatkan kualitas separasi, tetapi mengorbankan waktu pemrosesan menjadi dua kali lipat lebih lambat.
