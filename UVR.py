@@ -600,6 +600,11 @@ class ModelData():
                     self.is_scnet = self.model_data.get("is_scnet", False)
                     self.is_mamba2 = self.model_data.get("is_mamba2", False)
                     self.is_bandit = self.model_data.get("is_bandit", False)
+                    
+                    # Workaround for faulty online MDX hash mapper where SCNet models are marked as roformer
+                    if self.model_data.get("model_type") == "SCNet":
+                        self.is_roformer = False
+                        self.is_scnet = True
                     if "config_yaml" in self.model_data:
                         self.is_mdx_c = True
                         config_path = os.path.join(MDX_C_CONFIG_PATH, self.model_data["config_yaml"])
@@ -798,6 +803,37 @@ class ModelData():
             for hash, settings in hash_mapper.items():
                 if self.model_hash in hash:
                     return settings
+
+            # Auto-register known community models so no popup is needed
+            COMMUNITY_MODEL_CONFIGS = {
+                "becruily_guitar.ckpt": {
+                    "config_yaml": "config_guitar_becruily.yaml",
+                    "is_roformer": True,
+                    "model_type": "MelBand-Roformer",
+                    "is_karaoke": False
+                },
+                "gilliaan_drumsV1.ckpt": {
+                    "config_yaml": "config_drums_gilliaan.yaml",
+                    "is_roformer": True,
+                    "model_type": "BS-Roformer",
+                    "is_karaoke": False
+                },
+                "bs_roformer_4stems_ft.pth": {
+                    "config_yaml": "config_bs_roformer_4stems_syh99999.yaml",
+                    "is_roformer": True,
+                    "model_type": "BS-Roformer",
+                    "is_karaoke": False
+                },
+            }
+            model_basename = os.path.basename(getattr(self, 'model_path', ''))
+            if model_basename in COMMUNITY_MODEL_CONFIGS:
+                cfg = COMMUNITY_MODEL_CONFIGS[model_basename]
+                try:
+                    with open(model_settings_json, 'w') as f:
+                        json.dump(cfg, f, indent=4)
+                except Exception:
+                    pass
+                return cfg
 
             return self.get_model_data_from_popup()
 
@@ -5697,6 +5733,22 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 # Filter out all unwanted Roformer models from online data
                 # (Filter removed to allow all Roformer models)
                 
+                # Inject local community models that are not listed on TRvlvr's server
+                LOCAL_COMMUNITY_MODELS = {
+                    "Roformer Model: MB-Ro-Guitar-Becruily": {
+                        "becruily_guitar.ckpt": "https://huggingface.co/becruily/mel-band-roformer-guitar/resolve/main/becruily_guitar.ckpt"
+                    },
+                    "Roformer Model: BS-Ro-Drums-Gilliaan": {
+                        "gilliaan_drumsV1.ckpt": "https://huggingface.co/oulianov/BS-Roformer-DrumsOther-Duality/resolve/main/gilliaan_drumsV1.ckpt"
+                    },
+                    "Roformer Model: BS-Ro-4Stems-SYH99999": {
+                        "bs_roformer_4stems_ft.pth": "https://huggingface.co/SYH99999/bs_roformer_4stems_ft/resolve/main/bs_roformer_4stems_ft.pth"
+                    },
+                }
+                if "roformer_download_list" not in self.online_data:
+                    self.online_data["roformer_download_list"] = {}
+                self.online_data["roformer_download_list"].update(LOCAL_COMMUNITY_MODELS)
+                
                 self.is_online = True
 
                 try:
@@ -5924,6 +5976,11 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                             self.mdx_name_select_MAPPER[filename] = name
 
             self.mdx_name_select_MAPPER["mini-bs-roformer-v2-46.8M.safetensors"] = "Mini-BS-Roformer-V2-46.8M"
+            
+            # Community model name mappings
+            self.mdx_name_select_MAPPER["becruily_guitar.ckpt"] = "MB-Ro-Guitar-Becruily"
+            self.mdx_name_select_MAPPER["gilliaan_drumsV1.ckpt"] = "BS-Ro-Drums-Gilliaan"
+            self.mdx_name_select_MAPPER["bs_roformer_4stems_ft.pth"] = "BS-Ro-4Stems-SYH99999"
             
             # Clean up MDX23C prefixes that get pulled from online_data
             for k, v in self.mdx_name_select_MAPPER.items():

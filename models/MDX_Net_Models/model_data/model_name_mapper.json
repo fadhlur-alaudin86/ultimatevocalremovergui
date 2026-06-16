@@ -45,5 +45,8 @@
     "aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.ckpt": "DrumSep-Aufr33-Jarredou",
     "model_mdx23c_ep_271_l1_freq_72.2383.ckpt": "Phantom-Mid-Wesleyr36",
     "model_scnet_ep_54_sdr_9.8051.ckpt": "4S-SCNet-XL-ZFTurbo",
-    "mini-bs-roformer-v2-46.8M.safetensors": "Mini-BS-Roformer-V2-46.8M"
+    "mini-bs-roformer-v2-46.8M.safetensors": "Mini-BS-Roformer-V2-46.8M",
+    "becruily_guitar.ckpt": "MB-Ro-Guitar-Becruily",
+    "gilliaan_drumsV1.ckpt": "BS-Ro-Drums-Gilliaan",
+    "bs_roformer_4stems_ft.pth": "BS-Ro-4Stems-SYH99999"
 }

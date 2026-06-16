@@ -915,6 +915,11 @@ class SeperateMDXC(SeperateAttributes):
                     VOCAL_STEM: pitch_fix(voc_source) if self.is_pitch_change else voc_source,
                     INST_STEM: pitch_fix(inst_source) if self.is_pitch_change else inst_source
                 }
+                # Also add individual stems if defined in config
+                if getattr(self, 'mdx_c_configs', None) is not None and hasattr(self.mdx_c_configs, 'training') and hasattr(self.mdx_c_configs.training, 'instruments'):
+                    instruments = self.mdx_c_configs.training.instruments
+                    for k, v in zip(instruments, estimated_sources):
+                        sources[k] = pitch_fix(v) if self.is_pitch_change else v
                 return sources
             elif S > 1:
                 instruments = ["Vocals", "Instrumental"]

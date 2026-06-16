@@ -1,0 +1,6 @@
+{
+    "config_yaml": "config_drums_gilliaan.yaml",
+    "is_roformer": true,
+    "model_type": "BS-Roformer",
+    "is_karaoke": false
+}

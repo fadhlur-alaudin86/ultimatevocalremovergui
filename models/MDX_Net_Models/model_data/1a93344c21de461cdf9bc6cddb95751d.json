@@ -1,0 +1,6 @@
+{
+    "config_yaml": "config_guitar_becruily.yaml",
+    "is_roformer": true,
+    "model_type": "MelBand-Roformer",
+    "is_karaoke": false
+}
