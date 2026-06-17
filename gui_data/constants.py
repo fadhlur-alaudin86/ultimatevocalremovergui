@@ -637,6 +637,7 @@ DEFAULT_DATA = {
         'is_mdx_c_seg_def': False,
         'is_invert_spec': False, #
         'is_deverb_vocals': False, #
+        'vocal_deverb_model': NO_MODEL, #
         'deverb_vocal_opt': 'Main Vocals Only', #
         'voc_split_save_opt': 'Lead Only', #
         'is_mixer_mode': False, 
@@ -757,6 +758,7 @@ SETTING_CHECK = ('vr_model',
                'is_mdx_c_seg_def',
                'is_invert_spec',#
                'is_deverb_vocals',#
+               'vocal_deverb_model',#
                'deverb_vocal_opt',#
                'voc_split_save_opt',#
                'mdx_batch_size',

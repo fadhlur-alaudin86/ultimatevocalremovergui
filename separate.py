@@ -156,7 +156,7 @@ class SeperateAttributes:
         self.is_other_gpu = False
         self.is_deverb = True
         self.DENOISER_MODEL = model_data.DENOISER_MODEL
-        self.DEVERBER_MODEL = model_data.DEVERBER_MODEL
+        self.deverber_model = model_data.deverber_model
         self.is_source_swap = False
         self.vocal_split_model = model_data.vocal_split_model
         self.is_vocal_split_model = model_data.is_vocal_split_model
@@ -444,7 +444,35 @@ class SeperateAttributes:
             
         def deverb_vocals(stem_path:str, stem_source):
             self.write_to_console(INFERENCE_STEP_DEVERBING, base_text='')
-            stem_source_deverbed, stem_source_2 = vr_denoiser(stem_source, self.device, is_deverber=True, model_path=self.DEVERBER_MODEL)
+            if self.deverber_model.process_method == VR_ARCH_TYPE:
+                stem_source_deverbed, stem_source_2 = vr_denoiser(stem_source, self.device, is_deverber=True, model_path=self.deverber_model.model_path)
+            elif self.deverber_model.process_method == MDX_ARCH_TYPE:
+                deverber = SeperateMDXC(self.deverber_model, self.process_data) if self.deverber_model.is_mdx_c else SeperateMDX(self.deverber_model, self.process_data)
+                # stem_source shape: (samples, channels) — demix expects (channels, samples)
+                mix_input = stem_source.T
+                raw_result = deverber.demix(mix_input)
+                
+                if isinstance(raw_result, dict):
+                    # Multi-stem dict: look for the "clean" stem (first key, e.g. "No Reverb")
+                    keys = list(raw_result.keys())
+                    # Prefer a key that indicates a non-reverb / clean stem
+                    clean_key = next((k for k in keys if 'no reverb' in k.lower() or 'clean' in k.lower() or 'deverb' in k.lower()), keys[0])
+                    reverb_key = next((k for k in keys if 'reverb' in k.lower() and k != clean_key), keys[-1] if len(keys) > 1 else None)
+                    stem_source_deverbed = raw_result[clean_key].T  # back to (samples, channels)
+                    if reverb_key and reverb_key != clean_key:
+                        stem_source_2 = raw_result[reverb_key].T
+                    else:
+                        stem_source_2 = stem_source - stem_source_deverbed
+                else:
+                    # Single numpy array
+                    stem_source_deverbed = raw_result.T  # back to (samples, channels)
+                    stem_source_2 = stem_source - stem_source_deverbed
+                
+                if stem_source.shape != stem_source_deverbed.shape:
+                    stem_source_deverbed = spec_utils.match_array_shapes(stem_source_deverbed, stem_source)
+                if stem_source.shape != stem_source_2.shape:
+                    stem_source_2 = spec_utils.match_array_shapes(stem_source_2, stem_source)
+                    
             save_audio_file(stem_path.replace(".wav", "_deverbed.wav"), stem_source_deverbed)
             save_audio_file(stem_path.replace(".wav", "_reverb_only.wav"), stem_source_2)
             

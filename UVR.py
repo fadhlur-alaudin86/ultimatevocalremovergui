@@ -429,8 +429,19 @@ class ModelData():
         device_set = root.device_set_var.get()
         self.ensemble_settings = root.ensemble_model_settings.get(model_name, {}) if selected_process_method == ENSEMBLE_MODE else {}
         self.DENOISER_MODEL = DENOISER_MODEL_PATH
-        self.DEVERBER_MODEL = DEVERBER_MODEL_PATH
-        self.is_deverb_vocals = root.is_deverb_vocals_var.get() if os.path.isfile(DEVERBER_MODEL_PATH) else False
+        self.deverber_model_name = root.vocal_deverb_model_var.get()
+        self.is_deverb_vocals = root.is_deverb_vocals_var.get()
+        
+        # Don't recursively load deverber model if we are already loading a secondary model
+        if self.is_deverb_vocals and not self.deverber_model_name == NO_MODEL and not is_secondary_model:
+            deverber_arch_type = VR_ARCH_TYPE if self.deverber_model_name == 'UVR-DeEcho-DeReverb' else MDX_ARCH_TYPE
+            self.deverber_model = ModelData(self.deverber_model_name, 
+                                            selected_process_method=deverber_arch_type, 
+                                            is_secondary_model=True)
+        else:
+            self.deverber_model = None
+            self.is_deverb_vocals = False
+            
         self.deverb_vocal_opt = DEVERB_MAPPER[root.deverb_vocal_opt_var.get()]
         self.is_denoise_model = True if root.denoise_option_var.get() == DENOISE_M and os.path.isfile(DENOISER_MODEL_PATH) else False
         self.is_gpu_conversion = 0 if root.is_gpu_conversion_var.get() else -1
@@ -796,6 +807,44 @@ class ModelData():
             self.secondary_stem = secondary_stem(self.primary_stem)
             
     def get_model_data(self, model_hash_dir, hash_mapper:dict):
+        # Auto-register known community models so no popup is needed
+        COMMUNITY_MODEL_CONFIGS = {
+            "becruily_guitar.ckpt": {
+                "config_yaml": "config_guitar_becruily.yaml",
+                "is_roformer": True,
+                "model_type": "MelBand-Roformer",
+                "is_karaoke": False
+            },
+            "gilliaan_drumsV1.ckpt": {
+                "config_yaml": "config_drums_gilliaan.yaml",
+                "is_roformer": True,
+                "model_type": "BS-Roformer",
+                "is_karaoke": False
+            },
+            "bs_roformer_4stems_ft.pth": {
+                "config_yaml": "config_bs_roformer_4stems_syh99999.yaml",
+                "is_roformer": True,
+                "model_type": "BS-Roformer",
+                "is_karaoke": False
+            },
+            "deverb_bs_roformer_8_256dim_8depth.ckpt": {
+                "config_yaml": "deverb_bs_roformer_8_256dim_8depth.yaml",
+                "is_roformer": True,
+                "model_type": "BS-Roformer",
+                "is_karaoke": False
+            },
+        }
+        model_basename = os.path.basename(getattr(self, 'model_path', ''))
+        if model_basename in COMMUNITY_MODEL_CONFIGS:
+            cfg = COMMUNITY_MODEL_CONFIGS[model_basename]
+            model_settings_json = os.path.join(model_hash_dir, f"{self.model_hash}.json")
+            try:
+                with open(model_settings_json, 'w') as f:
+                    json.dump(cfg, f, indent=4)
+            except Exception:
+                pass
+            return cfg
+
         model_settings_json = os.path.join(model_hash_dir, f"{self.model_hash}.json")
 
         if os.path.isfile(model_settings_json):
@@ -805,37 +854,6 @@ class ModelData():
             for hash, settings in hash_mapper.items():
                 if self.model_hash in hash:
                     return settings
-
-            # Auto-register known community models so no popup is needed
-            COMMUNITY_MODEL_CONFIGS = {
-                "becruily_guitar.ckpt": {
-                    "config_yaml": "config_guitar_becruily.yaml",
-                    "is_roformer": True,
-                    "model_type": "MelBand-Roformer",
-                    "is_karaoke": False
-                },
-                "gilliaan_drumsV1.ckpt": {
-                    "config_yaml": "config_drums_gilliaan.yaml",
-                    "is_roformer": True,
-                    "model_type": "BS-Roformer",
-                    "is_karaoke": False
-                },
-                "bs_roformer_4stems_ft.pth": {
-                    "config_yaml": "config_bs_roformer_4stems_syh99999.yaml",
-                    "is_roformer": True,
-                    "model_type": "BS-Roformer",
-                    "is_karaoke": False
-                },
-            }
-            model_basename = os.path.basename(getattr(self, 'model_path', ''))
-            if model_basename in COMMUNITY_MODEL_CONFIGS:
-                cfg = COMMUNITY_MODEL_CONFIGS[model_basename]
-                try:
-                    with open(model_settings_json, 'w') as f:
-                        json.dump(cfg, f, indent=4)
-                except Exception:
-                    pass
-                return cfg
 
             return self.get_model_data_from_popup()
 
@@ -4897,10 +4915,6 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             enable_voc_split_model = lambda:(model_select_Option.configure(state=READ_ONLY), save_inst_Button.configure(state=tk.NORMAL))
             disable_voc_split_model = lambda:(model_select_Option.configure(state=tk.DISABLED), save_inst_Button.configure(state=tk.DISABLED), self.is_save_inst_set_vocal_splitter_var.set(False))
             voc_split_model_toggle = lambda:enable_voc_split_model() if self.is_set_vocal_splitter_var.get() else disable_voc_split_model()
-            
-            enable_deverb_opt = lambda:(deverb_vocals_Option.configure(state=READ_ONLY))
-            disable_deverb_opt= lambda:(deverb_vocals_Option.configure(state=tk.DISABLED))
-            deverb_opt_toggle = lambda:enable_deverb_opt() if self.is_deverb_vocals_var.get() else disable_deverb_opt()
 
             set_vocal_splitter_Frame = self.menu_FRAME_SET(set_vocal_splitter)
             set_vocal_splitter_Frame.grid(row=1)  
@@ -4925,20 +4939,33 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             set_vocal_splitter_title = self.menu_title_LABEL_SET(set_vocal_splitter_Frame, VOCAL_DEVERB_OPTIONS_TEXT)
             set_vocal_splitter_title.grid(pady=MENU_PADDING_2)
             
+            deverb_vocals_Label = self.menu_sub_LABEL_SET(set_vocal_splitter_Frame, SELECT_MODEL_TEXT)
+            deverb_vocals_Label.grid(pady=MENU_PADDING_1)
+            
+            # Select Model Dropdown
+            vocal_deverb_model_Option = ComboBoxMenu(set_vocal_splitter_Frame, dropdown_name='setvocaldeverbmodel', textvariable=self.vocal_deverb_model_var, values=self.vocal_deverb_models_list, offset=310, width=READ_ONLY_COMBO_WIDTH)
+            vocal_deverb_model_Option.grid(pady=7)
+            self.help_hints(vocal_deverb_model_Option, text="Select the Vocal Deverberation model to process the audio.")#
+            
             deverb_vocals_Label = self.menu_sub_LABEL_SET(set_vocal_splitter_Frame, 'Select Vocal Type to Deverb')
             deverb_vocals_Label.grid(pady=MENU_PADDING_1)
             deverb_vocals_Option = ComboBoxMenu(set_vocal_splitter_Frame, dropdown_name='setvocaldeverb', textvariable=self.deverb_vocal_opt_var, values=list(DEVERB_MAPPER.keys()), width=23)
             deverb_vocals_Option.grid(pady=7)
             self.help_hints(deverb_vocals_Option, text=IS_DEVERB_OPT_HELP)#
             
-            is_deverb_vocals_Option = ttk.Checkbutton(set_vocal_splitter_Frame, text=DEVERB_VOCALS_TEXT, width=15 if is_windows else 11, variable=self.is_deverb_vocals_var, command=deverb_opt_toggle) 
+            is_deverb_vocals_Option = ttk.Checkbutton(set_vocal_splitter_Frame, text=DEVERB_VOCALS_TEXT, width=15 if is_windows else 11, variable=self.is_deverb_vocals_var, command=lambda: deverb_opt_toggle()) 
             is_deverb_vocals_Option.grid(pady=0)
             self.help_hints(is_deverb_vocals_Option, text=IS_DEVERB_VOC_HELP)#
+
+            enable_deverb_opt = lambda:(deverb_vocals_Option.configure(state=READ_ONLY), vocal_deverb_model_Option.configure(state=READ_ONLY))
+            disable_deverb_opt= lambda:(deverb_vocals_Option.configure(state=tk.DISABLED), vocal_deverb_model_Option.configure(state=tk.DISABLED))
+            deverb_opt_toggle = lambda:enable_deverb_opt() if self.is_deverb_vocals_var.get() else disable_deverb_opt()
             
-            if not os.path.isfile(DEVERBER_MODEL_PATH):
+            if len(self.vocal_deverb_models_list) <= 1:
                 self.is_deverb_vocals_var.set(False)
                 is_deverb_vocals_Option.configure(state=tk.DISABLED)
                 disable_deverb_opt()
+                vocal_deverb_model_Option.configure(state=tk.DISABLED)
             
             cancel_Button = ttk.Button(set_vocal_splitter_Frame, text=CLOSE_WINDOW, command=lambda:set_vocal_splitter.destroy(), width=16)
             cancel_Button.grid(pady=MENU_PADDING_3)
@@ -6359,6 +6386,22 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
         new_vr_models = self.get_files_from_dir(VR_MODELS_DIR, PTH)
         new_mdx_models = self.get_files_from_dir(MDX_MODELS_DIR, (ONNX, CKPT, '.safetensors', '.pth'), is_mdxnet=True)
+        
+        # Collect and filter Deverb models
+        self.vocal_deverb_models_list = [NO_MODEL]
+        if 'UVR-DeEcho-DeReverb' in new_vr_models:
+            self.vocal_deverb_models_list.append('UVR-DeEcho-DeReverb')
+            
+        mdx_deverb_models = []
+        for m in new_mdx_models:
+            fixed = fix_name(m, self.mdx_name_select_MAPPER)
+            if 'deverb' in fixed.lower() or 'dereverb' in fixed.lower():
+                mdx_deverb_models.append(m)
+                self.vocal_deverb_models_list.append(fixed)
+                
+        # Exclude MDX deverber models from the main MDX-Net model list
+        new_mdx_models = tuple(m for m in new_mdx_models if m not in mdx_deverb_models)
+
         new_demucs_models = self.get_files_from_dir(DEMUCS_MODELS_DIR, (CKPT, '.gz', '.th')) + self.get_files_from_dir(DEMUCS_NEWER_REPO_DIR, YAML)
         new_ensembles_found = self.get_files_from_dir(ENSEMBLE_CACHE_DIR, JSON)
         new_settings_found = self.get_files_from_dir(SETTINGS_CACHE_DIR, JSON)
@@ -7990,6 +8033,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.is_mdx_c_seg_def_var = tk.BooleanVar(value=data['is_mdx_c_seg_def'])#
         self.is_invert_spec_var = tk.BooleanVar(value=data['is_invert_spec'])#
         self.is_deverb_vocals_var = tk.BooleanVar(value=data['is_deverb_vocals'])#
+        self.vocal_deverb_model_var = tk.StringVar(value=data['vocal_deverb_model'])#
         self.deverb_vocal_opt_var = tk.StringVar(value=data['deverb_vocal_opt'])#
         self.voc_split_save_opt_var = tk.StringVar(value=data['voc_split_save_opt'])#
         self.is_mixer_mode_var = tk.BooleanVar(value=data['is_mixer_mode'])
@@ -8231,6 +8275,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.is_set_vocal_splitter_var.set(loaded_setting['is_set_vocal_splitter'])#
         self.is_save_inst_set_vocal_splitter_var.set(loaded_setting['is_save_inst_set_vocal_splitter'])#
         self.deverb_vocal_opt_var.set(loaded_setting['deverb_vocal_opt'])#
+        self.vocal_deverb_model_var.set(loaded_setting['vocal_deverb_model'])#
         self.voc_split_save_opt_var.set(loaded_setting['voc_split_save_opt'])#
         self.is_deverb_vocals_var.set(loaded_setting['is_deverb_vocals'])#
         
@@ -8307,6 +8352,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             'is_mdx_c_seg_def': self.is_mdx_c_seg_def_var.get(),#
             'is_invert_spec': self.is_invert_spec_var.get(),#
             'is_deverb_vocals': self.is_deverb_vocals_var.get(),##, 
+            'vocal_deverb_model': self.vocal_deverb_model_var.get(),#
             'deverb_vocal_opt': self.deverb_vocal_opt_var.get(),#
             'voc_split_save_opt': self.voc_split_save_opt_var.get(),##, 
             'is_mixer_mode': self.is_mixer_mode_var.get(),
