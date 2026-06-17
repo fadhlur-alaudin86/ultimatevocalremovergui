@@ -20,6 +20,9 @@ tmp/
 # Temp lock
 *.lock
 
+# Log
+error.log
+
 # User Saved Settings & Ensembles
 gui_data/saved_settings/*.json
 gui_data/saved_ensembles/*.json
