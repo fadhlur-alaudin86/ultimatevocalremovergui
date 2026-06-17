@@ -633,6 +633,8 @@ class ModelData():
                                 # Update mdxnet_stem_select based on ensemble mode
                                 if self.is_ensemble_mode:
                                     self.mdxnet_stem_select = self.ensemble_primary_stem
+                            # Fix #4: check karaoke flag for MDX-C/Roformer models too
+                            self.check_if_karaokee_model()
                         else:
                             self.model_status = False
                     else:
@@ -748,14 +750,14 @@ class ModelData():
    
     def get_mdx_model_path(self):
 
-        if self.model_name.endswith(CKPT) or self.model_name.endswith('.safetensors'):
+        if self.model_name.endswith(CKPT) or self.model_name.endswith('.safetensors') or self.model_name.endswith('.pth'):
             self.is_mdx_ckpt = True
 
         ext = '' if self.is_mdx_ckpt else ONNX
         
         for file_name, chosen_mdx_model in root.mdx_name_select_MAPPER.items():
-            if self.model_name in chosen_mdx_model:
-                if file_name.endswith(CKPT) or file_name.endswith('.safetensors'):
+            if self.model_name == chosen_mdx_model:
+                if file_name.endswith(CKPT) or file_name.endswith('.safetensors') or file_name.endswith('.pth'):
                     ext = ''
                 self.model_path = os.path.join(MDX_MODELS_DIR, f"{file_name}{ext}")
                 break
@@ -2571,7 +2573,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         """Gets files from specified directory that ends with specified extention"""
         
         return tuple(
-            x if is_mdxnet and (x.endswith(CKPT) or x.endswith('.safetensors')) else os.path.splitext(x)[0]
+            x if is_mdxnet and (x.endswith(CKPT) or x.endswith('.safetensors') or x.endswith('.pth')) else os.path.splitext(x)[0]
             for x in os.listdir(directory)
             if x.endswith(ext)
         )
@@ -5663,12 +5665,12 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 elif process_method == MDX_ARCH_TYPE:
                     # Check mapper first
                     for file_name, names in self.mdx_name_select_MAPPER.items():
-                        if model_name in names:
-                            ext = '' if file_name.endswith((CKPT, '.safetensors', ONNX)) else ONNX
+                        if model_name == names:
+                            ext = '' if file_name.endswith((CKPT, '.safetensors', ONNX, '.pth')) else ONNX
                             model_path = os.path.join(MDX_MODELS_DIR, f"{file_name}{ext}")
                             break
                     if not model_path:
-                        for ext in ['', ONNX, CKPT, '.safetensors']:
+                        for ext in ['', ONNX, CKPT, '.safetensors', '.pth']:
                             p = os.path.join(MDX_MODELS_DIR, f"{model_name}{ext}")
                             if os.path.isfile(p):
                                 model_path = p
@@ -5676,10 +5678,22 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 elif process_method == DEMUCS_ARCH_TYPE:
                     for file_name, name in self.demucs_name_select_MAPPER.items():
                         if model_name == name:
-                            demucs_newer = any(v in file_name for v in [DEMUCS_V3, DEMUCS_V4])
+                            # Use the display name prefix (v3 | / v4 |) instead of filename
+                            # because htdemucs.yaml / mdx.yaml do NOT contain 'v3'/'v4' as substring
+                            demucs_newer = any(tag in model_name for tag in DEMUCS_NEWER_TAGS)
                             d = DEMUCS_NEWER_REPO_DIR if demucs_newer else DEMUCS_MODELS_DIR
                             model_path = os.path.join(d, file_name)
                             break
+                    # Fallback: search both Demucs dirs for any matching file/folder
+                    if not model_path:
+                        for d in [DEMUCS_NEWER_REPO_DIR, DEMUCS_MODELS_DIR]:
+                            for candidate in os.listdir(d) if os.path.isdir(d) else []:
+                                base = os.path.splitext(candidate)[0]
+                                if base == model_name or candidate == model_name:
+                                    model_path = os.path.join(d, candidate)
+                                    break
+                            if model_path:
+                                break
 
                 if model_path and os.path.exists(model_path):
                     # Compute hash before deleting
@@ -5693,6 +5707,16 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                         except Exception:
                             pass
                         os.remove(model_path)
+                        # For Demucs newer models (.yaml), also remove the associated .th weight files
+                        if model_path.endswith('.yaml'):
+                            yaml_dir = os.path.dirname(model_path)
+                            # Best-effort cleanup of shared .th weight files in same directory
+                            for th_file in os.listdir(yaml_dir):
+                                if th_file.endswith('.th'):
+                                    try:
+                                        os.remove(os.path.join(yaml_dir, th_file))
+                                    except Exception:
+                                        pass
                     elif os.path.isdir(model_path):
                         import shutil
                         shutil.rmtree(model_path)
@@ -5887,6 +5911,18 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.mdx_download_list.update(self.online_data.get("roformer_download_list", {}))
         self.mdx_download_list.update(self.online_data.get("other_network_list", {}))
         self.mdx_download_list.update(self.online_data.get("other_network_list_new", {}))
+
+        # Patch BS Roformer Dereverb URL: original URL redirects to a different repo path
+        # AND the filename has changed in the new repo.
+        # We download the new file but keep the old dictionary key so the mapper still works.
+        _DEVERB_KEY = 'Roformer Model: BS Roformer Dereverb | (anvuew edition)'
+        if _DEVERB_KEY in self.mdx_download_list:
+            _d = self.mdx_download_list[_DEVERB_KEY]
+            if isinstance(_d, dict):
+                for _k in list(_d.keys()):
+                    if _k.endswith('.ckpt'):
+                        _d[_k] = 'https://huggingface.co/anvuew/dereverb_bs_roformer/resolve/main/dereverb_bs_roformer_anvuew_sdr_22.5050.ckpt'
+
         
         if not self.decoded_vip_link is NO_CODE:
             self.vr_download_list.update(self.online_data["vr_download_vip_list"])
@@ -5919,7 +5955,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                                 config_link = val
                             else:
                                 config_link = f"{MDX23_CONFIG_CHECKS}{val}"
-                        elif key.endswith(CKPT) or key.endswith('.safetensors') or key.endswith(ONNX):
+                        elif key.endswith(CKPT) or key.endswith('.safetensors') or key.endswith(ONNX) or key.endswith('.pth'):
                             model_name = key
                             if val.endswith('.yaml') or val.endswith('.json'):
                                 config_filename = val
@@ -6070,7 +6106,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                         model_name = list(selected_model[1].keys())[0]
                         download_link = "{}{}".format(model_repo, model_name)
                         for key, val in selected_model[1].items():
-                            if key.endswith(CKPT) or key.endswith('.safetensors') or key.endswith(ONNX):
+                            if key.endswith(CKPT) or key.endswith('.safetensors') or key.endswith(ONNX) or key.endswith('.pth'):
                                 model_name = key
                                 if val.startswith('http'):
                                     download_link = val
@@ -6116,6 +6152,71 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.download_progress_bar_var.set(int(progress))
             self.download_progress_percent_var.set(progress + ' %')
             
+        def robust_download(url, save_path, bar_fn):
+            """Download with fallback chain: wget → requests → urllib.
+            Uses requests for HuggingFace URLs as it properly handles
+            LFS redirect chains (307 → CDN) that wget/urllib miss.
+            """
+            import os as _os
+
+            def _stream_with_requests(dl_url, dest_path):
+                import requests as _req
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (UVR/5.6; Linux; compatible)',
+                    'Accept': '*/*',
+                }
+                with _req.get(dl_url, stream=True, headers=headers,
+                               timeout=60, allow_redirects=True) as r:
+                    r.raise_for_status()
+                    total = int(r.headers.get('Content-Length', 0))
+                    downloaded = 0
+                    chunk_size = 1024 * 64
+                    with open(dest_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=chunk_size):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                if bar_fn and total:
+                                    bar_fn(downloaded, total)
+
+            # HuggingFace URLs require redirect-following (307 → CDN)
+            is_hf_url = 'huggingface.co' in url
+            if is_hf_url:
+                try:
+                    _stream_with_requests(url, save_path)
+                    return
+                except Exception:
+                    if _os.path.isfile(save_path):
+                        _os.remove(save_path)
+                    # fall through to wget
+
+            try:
+                wget.download(url, save_path, bar=bar_fn)
+            except Exception as wget_err:
+                if _os.path.isfile(save_path):
+                    _os.remove(save_path)
+                # Final fallback: urllib with User-Agent
+                try:
+                    import urllib.request as _ul
+                    req = _ul.Request(
+                        url,
+                        headers={'User-Agent': 'Mozilla/5.0 (UVR/5.6; compatible)'}
+                    )
+                    with _ul.urlopen(req) as response:
+                        total = int(response.headers.get('Content-Length', 0))
+                        downloaded = 0
+                        with open(save_path, 'wb') as out_file:
+                            while True:
+                                chunk = response.read(1024 * 64)
+                                if not chunk:
+                                    break
+                                out_file.write(chunk)
+                                downloaded += len(chunk)
+                                if bar_fn and total:
+                                    bar_fn(downloaded, total)
+                except Exception as urllib_err:
+                    raise wget_err from urllib_err
+
         def push_download():
             self.is_download_thread_active = True
             try:
@@ -6124,7 +6225,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     if os.path.isfile(self.download_update_path_var.get()):
                         self.download_progress_info_var.set(FILE_EXISTS)
                     else:
-                        wget.download(self.download_update_link_var.get(), self.download_update_path_var.get(), bar=download_progress_bar)
+                        robust_download(self.download_update_link_var.get(), self.download_update_path_var.get(), download_progress_bar)
                         
                     self.download_post_action(DOWNLOAD_UPDATE_COMPLETE)
                 else:
@@ -6134,13 +6235,13 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                             if os.path.isfile(model_data[0]):
                                 continue
                             else:
-                                wget.download(model_data[1], model_data[0], bar=download_progress_bar)
+                                robust_download(model_data[1], model_data[0], download_progress_bar)
                     else:
                         self.download_progress_info_var.set(SINGLE_DOWNLOAD)
                         if os.path.isfile(self.download_save_path_var.get()):
                             self.download_progress_info_var.set(FILE_EXISTS)
                         else:
-                            wget.download(self.download_link_path_var.get(), self.download_save_path_var.get(), bar=download_progress_bar)
+                            robust_download(self.download_link_path_var.get(), self.download_save_path_var.get(), download_progress_bar)
                             
                     self.download_post_action(DOWNLOAD_COMPLETE)
                 
@@ -6254,10 +6355,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         Also updates ensemble listbox and user saved settings list.
         """
         
-        def fix_name(name, mapper:dict): return next((new_name for old_name, new_name in mapper.items() if name in old_name), name)
+        def fix_name(name, mapper:dict): return next((new_name for old_name, new_name in mapper.items() if name == old_name), name)
         
         new_vr_models = self.get_files_from_dir(VR_MODELS_DIR, PTH)
-        new_mdx_models = self.get_files_from_dir(MDX_MODELS_DIR, (ONNX, CKPT, '.safetensors'), is_mdxnet=True)
+        new_mdx_models = self.get_files_from_dir(MDX_MODELS_DIR, (ONNX, CKPT, '.safetensors', '.pth'), is_mdxnet=True)
         new_demucs_models = self.get_files_from_dir(DEMUCS_MODELS_DIR, (CKPT, '.gz', '.th')) + self.get_files_from_dir(DEMUCS_NEWER_REPO_DIR, YAML)
         new_ensembles_found = self.get_files_from_dir(ENSEMBLE_CACHE_DIR, JSON)
         new_settings_found = self.get_files_from_dir(SETTINGS_CACHE_DIR, JSON)
@@ -6925,6 +7026,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
     def queue_worker_loop(self):
         self.is_queue_worker_running = True
+        last_task_error = None  # Fix #1: track error from last task for process_end
         while self.processing_queue:
             # Find the first pending task
             task = None
@@ -6944,14 +7046,23 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             # Keep button enabled so user can still enqueue while processing
             self.after(0, self.process_button_queue_mode)
             
-            # Prepare target function
-            if task.process_method == AUDIO_TOOLS:
-                target_function = lambda t=task: self.process_tool_start(task=t)
-            else:
-                target_function = lambda t=task: self.process_start(task=t)
-                
+            task_error = [None]  # mutable container to capture exception from thread
+
+            # Prepare target function with error capture
+            def make_target(t, err_holder):
+                if t.process_method == AUDIO_TOOLS:
+                    base_fn = lambda: self.process_tool_start(task=t)
+                else:
+                    base_fn = lambda: self.process_start(task=t)
+                def wrapped():
+                    try:
+                        base_fn()
+                    except Exception as exc:
+                        err_holder[0] = exc
+                return wrapped
+
             # Start the task in a KThread
-            self.active_processing_thread = KThread(target=target_function)
+            self.active_processing_thread = KThread(target=make_target(task, task_error))
             self.active_processing_thread.start()
             
             # Wait for the task thread to complete
@@ -6961,6 +7072,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             if self.is_process_stopped:
                 task.status = TASK_STATUS_FAILED
                 self.command_Text.write(f"\nTask {task.id} stopped by user.\n")
+            elif task_error[0] is not None:
+                task.status = TASK_STATUS_FAILED
+                last_task_error = task_error[0]  # preserve for process_end
             elif task.status == TASK_STATUS_RUNNING:
                 task.status = TASK_STATUS_COMPLETED
                 
@@ -6969,7 +7083,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             
         self.is_queue_worker_running = False
         self.active_processing_thread = None
-        self.after(0, self.process_end)
+        # Fix #1: forward last error (if any) so process_end shows the error dialog
+        self.after(0, lambda: self.process_end(error=last_task_error))
 
     def remove_selected_task(self):
         if not hasattr(self, 'queue_treeview') or not self.queue_treeview:

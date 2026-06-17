@@ -402,6 +402,12 @@ class SeperateAttributes:
                 save_format(path, self.save_format, self.mp3_bit_set, self.is_replaygain, input_file_path=self.original_audio_file)
 
         def save_voc_split_instrumental(stem_name, stem_source, is_inst_invert=False):
+            # Same karaoke stem remapping as save_voc_split_vocal
+            if self.is_karaoke and self.is_vocal_split_model:
+                if stem_name == VOCAL_STEM:
+                    stem_name = LEAD_VOCAL_STEM
+                elif stem_name == INST_STEM:
+                    stem_name = BV_VOCAL_STEM
             inst_stem_name = "Instrumental (With Lead Vocals)" if stem_name == LEAD_VOCAL_STEM else "Instrumental (With Backing Vocals)"
             inst_stem_path_name = LEAD_VOCAL_STEM_I if stem_name == LEAD_VOCAL_STEM else BV_VOCAL_STEM_I
             inst_stem_path = self.audio_file_base_voc_split(INST_STEM, inst_stem_path_name)
@@ -410,6 +416,14 @@ class SeperateAttributes:
             save_with_message(inst_stem_path, inst_stem_name, inst_stem_source)
 
         def save_voc_split_vocal(stem_name, stem_source):
+            # When a karaoke model is used as vocal splitter, its output stems are named
+            # 'Vocals' (lead) and 'Instrumental' (backing). Remap to the correct split
+            # identifiers so filename paths use (Vocals_Lead) / (Vocals_Backing).
+            if self.is_karaoke and self.is_vocal_split_model:
+                if stem_name == VOCAL_STEM:
+                    stem_name = LEAD_VOCAL_STEM
+                elif stem_name == INST_STEM:
+                    stem_name = BV_VOCAL_STEM
             voc_split_stem_name = LEAD_VOCAL_STEM_LABEL if stem_name == LEAD_VOCAL_STEM else BV_VOCAL_STEM_LABEL
             voc_split_stem_path = self.audio_file_base_voc_split(VOCAL_STEM, stem_name)
             save_with_message(voc_split_stem_path, voc_split_stem_name, stem_source)
@@ -434,8 +448,16 @@ class SeperateAttributes:
             save_audio_file(stem_path.replace(".wav", "_deverbed.wav"), stem_source_deverbed)
             save_audio_file(stem_path.replace(".wav", "_reverb_only.wav"), stem_source_2)
             
-        is_bv_model_lead = (self.is_bv_model_rebalenced and self.is_vocal_split_model and stem_name == LEAD_VOCAL_STEM)
-        is_bv_rebalance_lead = (self.is_bv_model_rebalenced and self.is_vocal_split_model and stem_name == BV_VOCAL_STEM)
+        # For karaoke vocal splitter, remap stem_name so bv_model checks work correctly
+        _eff_stem_name = stem_name
+        if self.is_karaoke and self.is_vocal_split_model:
+            if _eff_stem_name == VOCAL_STEM:
+                _eff_stem_name = LEAD_VOCAL_STEM
+            elif _eff_stem_name == INST_STEM:
+                _eff_stem_name = BV_VOCAL_STEM
+
+        is_bv_model_lead = (self.is_bv_model_rebalenced and self.is_vocal_split_model and _eff_stem_name == LEAD_VOCAL_STEM)
+        is_bv_rebalance_lead = (self.is_bv_model_rebalenced and self.is_vocal_split_model and _eff_stem_name == BV_VOCAL_STEM)
         is_no_vocal_save = self.is_inst_only_voc_splitter and (stem_name == VOCAL_STEM or stem_name == BV_VOCAL_STEM or stem_name == LEAD_VOCAL_STEM) or is_bv_model_lead
         is_not_ensemble = (not self.is_ensemble_mode or self.is_vocal_split_model)
         is_do_not_save_inst = (self.is_save_vocal_only and self.is_sec_bv_rebalance and stem_name == INST_STEM)

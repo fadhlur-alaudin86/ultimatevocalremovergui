@@ -1,0 +1,6 @@
+{
+    "config_yaml": "config_bs_roformer_4stems_syh99999.yaml",
+    "is_roformer": true,
+    "model_type": "BS-Roformer",
+    "is_karaoke": false
+}
