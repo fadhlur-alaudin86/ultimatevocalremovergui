@@ -6716,8 +6716,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 self.is_primary_stem_only_Demucs_Option.configure(state=tk.NORMAL)
                 self.is_secondary_stem_only_Demucs_Option.configure(state=tk.NORMAL)
                 
-        stem_text[0].set(f"{selection} Only")
-        stem_text[1].set(f"{secondary_stem(selection)} Only")
+        format_stem = lambda s: "No Reverb" if s == "noreverb" else ("Reverb" if s == "reverb" else ("Dry" if s == "dry" else ("Other" if s == "other" else s)))
+        stem_text[0].set(f"{format_stem(selection)} Only")
+        stem_text[1].set(f"{format_stem(secondary_stem(selection))} Only")
      
     def update_ensemble_algorithm_menu(self, is_4_stem=False):
         options = ENSEMBLE_TYPE_4_STEM if is_4_stem else ENSEMBLE_TYPE

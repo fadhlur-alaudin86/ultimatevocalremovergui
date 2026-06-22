@@ -241,6 +241,10 @@ STEM_PAIR_MAPPER = {
             INST_STEM: VOCAL_STEM,
             LEAD_VOCAL_STEM: BV_VOCAL_STEM,
             BV_VOCAL_STEM: LEAD_VOCAL_STEM,
+            'noreverb': 'reverb',
+            'reverb': 'noreverb',
+            'dry': 'other',
+            'other': 'dry',
             PRIMARY_STEM: SECONDARY_STEM}
 
 STEM_PAIR_MAPPER_FULL = {
@@ -266,6 +270,10 @@ STEM_PAIR_MAPPER_FULL = {
             NO_WOODWINDS_STEM: WOODWINDS_STEM,
             NO_BRASS_STEM: BRASS_STEM,
             NO_WIND_INST_STEM: WIND_INST_STEM,
+            'noreverb': 'reverb',
+            'reverb': 'noreverb',
+            'dry': 'other',
+            'other': 'dry',
             PRIMARY_STEM: SECONDARY_STEM}
 
 NO_STEM = "No "
