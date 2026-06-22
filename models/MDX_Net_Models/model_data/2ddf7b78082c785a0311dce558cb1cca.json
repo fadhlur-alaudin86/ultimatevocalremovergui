@@ -1,3 +1,6 @@
 {
-    "config_yaml": "deverb_bs_roformer_8_256dim_8depth.yaml"
+    "config_yaml": "deverb_bs_roformer_8_256dim_8depth.yaml",
+    "is_roformer": true,
+    "model_type": "BS-Roformer",
+    "is_karaoke": false
 }
