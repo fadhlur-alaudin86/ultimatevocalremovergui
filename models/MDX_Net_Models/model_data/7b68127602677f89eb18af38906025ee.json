@@ -1,0 +1,6 @@
+{
+    "config_yaml": "model_mel_band_roformer_denoise.yaml",
+    "is_roformer": true,
+    "model_type": "MelBand-Roformer",
+    "is_karaoke": false
+}

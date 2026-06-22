@@ -36,7 +36,7 @@
     "MelBandRoformer.ckpt": "MB-Roformer-Kim",
     "BS_Inst_EXP_VRL.ckpt": "BS-Ro-Inst-EXP-Unwa",
     "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt": "MB-Ro-Kara-Aufr33-Viperx",
-    "deverb_bs_roformer_8_256dim_8depth.ckpt": "BS-Ro-Dereverb-Anvuew",
+    "deverb_bs_roformer_8_256dim_8depth.ckpt": "BS-Ro-Dereverb-Old",
     "model_bandit_plus_dnr_sdr_11.47.ckpt": "Cinematic-Bandit-Plus",
     "checkpoint-multi_fixed.ckpt": "Cinematic-Bandit-Multi",
     "scnet_checkpoint_musdb18.ckpt": "4S-SCNet-Starrytong",

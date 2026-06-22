@@ -1,5 +1,5 @@
 {
-    "config_yaml": "dereverb_bs_roformer_anvuew_sdr_22.5050.yaml",
+    "config_yaml": "config_BandSplit-Roformer_SW_by-jarredou.yaml",
     "is_roformer": true,
     "model_type": "BS-Roformer",
     "is_karaoke": false

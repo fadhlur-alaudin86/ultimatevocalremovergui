@@ -6434,8 +6434,6 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                 mdx_deverb_models.append(m)
                 self.vocal_deverb_models_list.append(fixed)
                 
-        # Exclude MDX deverber models from the main MDX-Net model list
-        new_mdx_models = tuple(m for m in new_mdx_models if m not in mdx_deverb_models)
 
         new_demucs_models = self.get_files_from_dir(DEMUCS_MODELS_DIR, (CKPT, '.gz', '.th')) + self.get_files_from_dir(DEMUCS_NEWER_REPO_DIR, YAML)
         new_ensembles_found = self.get_files_from_dir(ENSEMBLE_CACHE_DIR, JSON)
