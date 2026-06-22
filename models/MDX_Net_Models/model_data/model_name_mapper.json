@@ -48,5 +48,8 @@
     "mini-bs-roformer-v2-46.8M.safetensors": "Mini-BS-Roformer-V2-46.8M",
     "becruily_guitar.ckpt": "MB-Ro-Guitar-Becruily",
     "gilliaan_drumsV1.ckpt": "BS-Ro-Drums-Gilliaan",
-    "bs_roformer_4stems_ft.pth": "BS-Ro-4Stems-SYH99999"
+    "bs_roformer_4stems_ft.pth": "BS-Ro-4Stems-SYH99999",
+    "dereverb_bs_roformer_anvuew_sdr_22.5050.ckpt": "BS-Ro-Dereverb-Anvuew",
+    "denoise_mel_band_roformer_aufr33_sdr_27.9959.ckpt": "MB-Ro-Denoise-Poiqazwsx",
+    "model_BandSplit-Roformer_SW_by-jarredou.ckpt": "BS-Ro-SW-6Stems-Jarredou"
 }

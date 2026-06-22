@@ -827,8 +827,20 @@ class ModelData():
                 "model_type": "BS-Roformer",
                 "is_karaoke": False
             },
-            "deverb_bs_roformer_8_256dim_8depth.ckpt": {
-                "config_yaml": "deverb_bs_roformer_8_256dim_8depth.yaml",
+            "dereverb_bs_roformer_anvuew_sdr_22.5050.ckpt": {
+                "config_yaml": "dereverb_bs_roformer_anvuew_sdr_22.5050.yaml",
+                "is_roformer": True,
+                "model_type": "BS-Roformer",
+                "is_karaoke": False
+            },
+            "denoise_mel_band_roformer_aufr33_sdr_27.9959.ckpt": {
+                "config_yaml": "model_mel_band_roformer_denoise.yaml",
+                "is_roformer": True,
+                "model_type": "MelBand-Roformer",
+                "is_karaoke": False
+            },
+            "model_BandSplit-Roformer_SW_by-jarredou.ckpt": {
+                "config_yaml": "config_BandSplit-Roformer_SW_by-jarredou.yaml",
                 "is_roformer": True,
                 "model_type": "BS-Roformer",
                 "is_karaoke": False
@@ -1639,6 +1651,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         self.mdx_hash_MAPPER = load_model_hash_data(MDX_HASH_JSON)
         self.mdx_name_select_MAPPER = load_model_hash_data(MDX_MODEL_NAME_SELECT)
         self.demucs_name_select_MAPPER = load_model_hash_data(DEMUCS_MODEL_NAME_SELECT)
+        self._inject_community_name_mappings()
         self.is_gpu_available = is_gpu_available
         self.is_process_stopped = False
         self.inputs_from_dir = []
@@ -5888,6 +5901,23 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             self.current_thread.setDaemon(True) if not is_windows else None
             self.current_thread.start()
 
+    def _inject_community_name_mappings(self):
+        """Injects custom community model name mappings into the MDX name mapper.
+        Called both at startup and after online data refresh so names always persist."""
+        custom_mappings = {
+            "mini-bs-roformer-v2-46.8M.safetensors": "Mini-BS-Roformer-V2-46.8M",
+            "becruily_guitar.ckpt": "MB-Ro-Guitar-Becruily",
+            "gilliaan_drumsV1.ckpt": "BS-Ro-Drums-Gilliaan",
+            "bs_roformer_4stems_ft.pth": "BS-Ro-4Stems-SYH99999",
+            # Old dereverb filename from previous session – renamed to avoid name collision
+            "deverb_bs_roformer_8_256dim_8depth.ckpt": "BS-Ro-Dereverb-Old",
+            # New reliable dereverb from anvuew
+            "dereverb_bs_roformer_anvuew_sdr_22.5050.ckpt": "BS-Ro-Dereverb-Anvuew",
+            "denoise_mel_band_roformer_aufr33_sdr_27.9959.ckpt": "MB-Ro-Denoise-Poiqazwsx",
+            "model_BandSplit-Roformer_SW_by-jarredou.ckpt": "BS-Ro-SW-6Stems-Jarredou",
+        }
+        self.mdx_name_select_MAPPER.update(custom_mappings)
+
     def offline_state_set(self, is_start_up=False):
         """Changes relevant settings and "Download Center" buttons if no internet connection is available"""
         
@@ -5941,14 +5971,24 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
 
         # Patch BS Roformer Dereverb URL: original URL redirects to a different repo path
         # AND the filename has changed in the new repo.
-        # We download the new file but keep the old dictionary key so the mapper still works.
+        # We replace the dictionary for this key completely to ensure the correct yaml is downloaded
         _DEVERB_KEY = 'Roformer Model: BS Roformer Dereverb | (anvuew edition)'
-        if _DEVERB_KEY in self.mdx_download_list:
-            _d = self.mdx_download_list[_DEVERB_KEY]
-            if isinstance(_d, dict):
-                for _k in list(_d.keys()):
-                    if _k.endswith('.ckpt'):
-                        _d[_k] = 'https://huggingface.co/anvuew/dereverb_bs_roformer/resolve/main/dereverb_bs_roformer_anvuew_sdr_22.5050.ckpt'
+        self.mdx_download_list[_DEVERB_KEY] = {
+            "dereverb_bs_roformer_anvuew_sdr_22.5050.ckpt": "https://huggingface.co/anvuew/dereverb_bs_roformer/resolve/main/dereverb_bs_roformer_anvuew_sdr_22.5050.ckpt",
+            "dereverb_bs_roformer_anvuew_sdr_22.5050.yaml": "https://huggingface.co/anvuew/dereverb_bs_roformer/resolve/main/config.yaml"
+        }
+
+        # Inject newly requested models into the download list
+        self.mdx_download_list.update({
+            "Roformer Model: MelBand Roformer Denoise | (poiqazwsx)": {
+                "denoise_mel_band_roformer_aufr33_sdr_27.9959.ckpt": "https://huggingface.co/poiqazwsx/melband-roformer-denoise/resolve/main/denoise_mel_band_roformer_aufr33_sdr_27.9959.ckpt",
+                "model_mel_band_roformer_denoise.yaml": "https://huggingface.co/poiqazwsx/melband-roformer-denoise/resolve/main/model_mel_band_roformer_denoise.yaml"
+            },
+            "Roformer Model: BandSplit Roformer SW 6-Stems | (jarredou)": {
+                "model_BandSplit-Roformer_SW_by-jarredou.ckpt": "https://huggingface.co/cdjmix1991/bandsplit-roformer-sw-by-jarredou/resolve/main/model_BandSplit-Roformer_SW_by-jarredou.ckpt",
+                "config_BandSplit-Roformer_SW_by-jarredou.yaml": "https://huggingface.co/cdjmix1991/bandsplit-roformer-sw-by-jarredou/resolve/main/config_BandSplit-Roformer_SW_by-jarredou.yaml"
+            }
+        })
 
         
         if not self.decoded_vip_link is NO_CODE:
@@ -6038,12 +6078,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                         for filename in data.keys():
                             self.mdx_name_select_MAPPER[filename] = name
 
-            self.mdx_name_select_MAPPER["mini-bs-roformer-v2-46.8M.safetensors"] = "Mini-BS-Roformer-V2-46.8M"
-            
-            # Community model name mappings
-            self.mdx_name_select_MAPPER["becruily_guitar.ckpt"] = "MB-Ro-Guitar-Becruily"
-            self.mdx_name_select_MAPPER["gilliaan_drumsV1.ckpt"] = "BS-Ro-Drums-Gilliaan"
-            self.mdx_name_select_MAPPER["bs_roformer_4stems_ft.pth"] = "BS-Ro-4Stems-SYH99999"
+            self._inject_community_name_mappings()
             
             # Clean up MDX23C prefixes that get pulled from online_data
             for k, v in self.mdx_name_select_MAPPER.items():
