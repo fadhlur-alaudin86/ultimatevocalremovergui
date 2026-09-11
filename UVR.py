@@ -2602,7 +2602,8 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         
     def get_files_from_dir(self, directory, ext, is_mdxnet=False):
         """Gets files from specified directory that ends with specified extention"""
-        
+        if not os.path.isdir(directory):
+            return ()
         return tuple(
             x if is_mdxnet and (x.endswith(CKPT) or x.endswith('.safetensors') or x.endswith('.pth')) else os.path.splitext(x)[0]
             for x in os.listdir(directory)
