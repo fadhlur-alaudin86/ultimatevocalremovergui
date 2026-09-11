@@ -23,7 +23,7 @@ cycler==0.12.1
 Cython==3.2.5
 decorator==5.3.1
 diffq==0.2.4
-Dora==0.0.3
+# Dora==0.0.3
 einops==0.8.2
 filelock==3.29.3
 flatbuffers==25.12.19
@@ -110,12 +110,12 @@ rotary-embedding-torch==0.8.9
 rotary-embedding-torch==0.8.9
 safetensors==0.8.0
 samplerate==0.2.4
-scikit-learn==1.9.0
+# scikit-learn==1.9.0
 scipy==1.17.1
 screeninfo==0.8.1
 shellingham==1.5.4
 six==1.17.0
-sklearn==0.0.post12
+# sklearn==0.0.post12
 soundfile==0.14.0
 soundstretch==1.2
 soxr==1.1.0
