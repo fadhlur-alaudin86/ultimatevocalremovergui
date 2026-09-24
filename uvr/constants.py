@@ -73,3 +73,6 @@ FAIL_CHIME = os.path.join(BASE_PATH, "gui_data", "fail_chime.wav")
 # Default model weights
 DENOISER_MODEL_PATH = os.path.join(VR_MODELS_DIR, "UVR-DeNoise-Lite.pth")
 DEVERBER_MODEL_PATH = os.path.join(VR_MODELS_DIR, "UVR-DeEcho-DeReverb.pth")
+
+# Legacy patch strings
+PREVIOUS_PATCH_WIN = "UVR_Patch_10_6_23_4_27"

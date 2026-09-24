@@ -113,3 +113,20 @@ def clean_empty_dirs(root_dir: str) -> None:
             except OSError:
                 pass
 
+
+def open_file_or_folder(path: str) -> None:
+    """Opens a file or directory using the operating system's default viewer."""
+    import platform
+    import subprocess
+
+    system = platform.system()
+    try:
+        if system == "Darwin":
+            subprocess.Popen(["open", path])
+        elif system == "Windows":
+            os.startfile(path)  # type: ignore[attr-defined]
+        else:
+            subprocess.Popen(["xdg-open", path])
+    except Exception as exc:
+        logger.debug("Failed to open %s: %s", path, exc)
+
