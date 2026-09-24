@@ -11,7 +11,8 @@ import os
 import subprocess
 import tkinter as tk
 import urllib.request
-from tkinter import messagebox
+import webbrowser
+from tkinter import messagebox, ttk
 from typing import Any
 
 import natsort
@@ -22,22 +23,35 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from kthread import KThread
 
 from __version__ import PATCH, PATCH_LINUX, PATCH_MAC
+from gui_data.app_size_values import (
+    FONT_SIZE_1,
+    FONT_SIZE_3,
+    MENU_PADDING_1,
+    MENU_PADDING_2,
+)
 from gui_data.constants import (
     ALL_TYPES,
     ARM,
     BETA_VERSION,
+    BMAC_UVR_TEXT,
     BULLETIN_CHECK,
+    CANCEL_TEXT,
     CHECK_FOR_UPDATES_TEXT,
     CHOOSE_ENSEMBLE_OPTION,
     CHOOSE_MODEL,
     CKPT,
+    CONFIRM_TEXT,
+    CONFIRM_UPDATE_TEXT,
     DELETE_ENS_ENTRY,
     DELETE_MODEL_CONFIRM_TEXT,
     DEMUCS_ARCH_TYPE,
     DEMUCS_MODEL_NAME_DATA_LINK,
     DEMUCS_NEWER_ARCH_TYPES,
     DEMUCS_NEWER_TAGS,
+    DONATE_LINK_BMAC,
+    DONATE_LINK_PATREON,
     DOWNLOAD_CHECKS,
+    DOWNLOAD_CODE_TEXT,
     DOWNLOAD_COMPLETE,
     DOWNLOAD_FAILED,
     DOWNLOAD_MORE,
@@ -45,8 +59,11 @@ from gui_data.constants import (
     DOWNLOAD_UPDATE_COMPLETE,
     DOWNLOADING_ITEM,
     DOWNLOADING_UPDATE,
+    FG_COLOR,
     FILE_EXISTS,
+    GET_DL_VIP_CODE_TEXT,
     INFO_UNAVAILABLE_TEXT,
+    INPUT_CODE_TEXT,
     LOADING_VERSION_INFO_TEXT,
     MDX23_CONFIG_CHECKS,
     MDX_23_NAME,
@@ -57,6 +74,7 @@ from gui_data.constants import (
     NO_CONNECTION,
     NO_MODEL,
     NO_NEW_MODELS,
+    NO_TEXT,
     NORMAL_REPO,
     ONNX,
     OPERATING_SYSTEM,
@@ -66,16 +84,22 @@ from gui_data.constants import (
     SELECT_SAVED_ENSEMBLE,
     SELECT_SAVED_SET,
     SINGLE_DOWNLOAD,
+    SUPPORT_UVR_TEXT,
     SYSTEM_ARCH,
     SYSTEM_PROC,
+    UPDATE_CONFIRMATION_TEXT,
+    UPDATE_FOUND_TEXT,
     UPDATE_LINUX_REPO,
     UPDATE_MAC_ARM_REPO,
     UPDATE_MAC_X86_64_REPO,
     UPDATE_REPO,
+    USER_DOWNLOAD_CODES_TEXT,
+    UVR_PATREON_LINK_TEXT,
     VIP_REPO,
     VIP_SELECTION,
     VR_ARCH_TYPE,
     VR_MODEL_DATA_LINK,
+    YES_TEXT,
 )
 from gui_data.error_handling import error_text
 from uvr.constants import (
@@ -85,6 +109,7 @@ from uvr.constants import (
     DEMUCS_MODELS_DIR,
     DEMUCS_NEWER_REPO_DIR,
     IS_WINDOWS,
+    MAIN_FONT_NAME,
     MDX_C_CONFIG_PATH,
     MDX_HASH_DIR,
     MDX_HASH_JSON,
@@ -95,6 +120,7 @@ from uvr.constants import (
     VR_MODELS_DIR,
 )
 from uvr.core.settings import load_model_hash_data
+from uvr.ui.components.tooltip import ToolTip
 
 logger = logging.getLogger(__name__)
 
@@ -971,3 +997,89 @@ class DownloadManager:
 
         self.root.is_download_thread_active = False
         self.root.delete_temps()
+
+    def pop_up_update_confirmation(self) -> None:
+        """Ask user if they want to update."""
+        is_new_update = self.online_data_refresh(confirmation_box=True)
+        is_download_in_app_var = tk.BooleanVar(value=False)
+
+        def update_type():
+            if is_download_in_app_var.get():
+                self.download_item(is_update_app=True)
+            else:
+                webbrowser.open_new_tab(self.root.download_update_link_var.get())
+
+            update_confirmation_win.destroy()
+
+        if is_new_update:
+            update_confirmation_win = tk.Toplevel()
+
+            update_confirmation_Frame = self.root.menu_FRAME_SET(update_confirmation_win)
+            update_confirmation_Frame.grid(row=0)
+
+            update_found_label = self.root.menu_title_LABEL_SET(update_confirmation_Frame, UPDATE_FOUND_TEXT, width=15)
+            update_found_label.grid(row=0, column=0, padx=0, pady=MENU_PADDING_2)
+
+            confirm_update_label = self.root.menu_sub_LABEL_SET(update_confirmation_Frame, UPDATE_CONFIRMATION_TEXT, font_size=FONT_SIZE_3)
+            confirm_update_label.grid(row=1, column=0, padx=0, pady=MENU_PADDING_1)
+
+            yes_button = ttk.Button(update_confirmation_Frame, text=YES_TEXT, command=update_type)
+            yes_button.grid(row=2, column=0, padx=0, pady=MENU_PADDING_1)
+
+            no_button = ttk.Button(update_confirmation_Frame, text=NO_TEXT, command=lambda: update_confirmation_win.destroy())
+            no_button.grid(row=3, column=0, padx=0, pady=MENU_PADDING_1)
+
+            if IS_WINDOWS:
+                download_outside_application_button = ttk.Checkbutton(update_confirmation_Frame, variable=is_download_in_app_var, text="Download Update in Application")
+                download_outside_application_button.grid(row=4, column=0, padx=0, pady=MENU_PADDING_1)
+
+            self.root.menu_placement(update_confirmation_win, CONFIRM_UPDATE_TEXT, pop_up=True)
+
+    def pop_up_user_code_input(self) -> None:
+        """Input VIP Code dialog."""
+        self.root.user_code_validation_var.set("")
+
+        self.root.user_code = tk.Toplevel()
+
+        user_code_Frame = self.root.menu_FRAME_SET(self.root.user_code)
+        user_code_Frame.grid(row=0)
+
+        user_code_title_Label = self.root.menu_title_LABEL_SET(user_code_Frame, USER_DOWNLOAD_CODES_TEXT, width=20)
+        user_code_title_Label.grid(row=0, column=0, padx=0, pady=MENU_PADDING_1)
+
+        user_code_Label = self.root.menu_sub_LABEL_SET(user_code_Frame, DOWNLOAD_CODE_TEXT)
+        user_code_Label.grid(pady=MENU_PADDING_1)
+
+        self.root.user_code_Entry = ttk.Entry(user_code_Frame, textvariable=self.root.user_code_var, justify="center")
+        self.root.user_code_Entry.grid(pady=MENU_PADDING_1)
+        self.root.user_code_Entry.bind(self.root.right_click_button, self.root.right_click_menu_popup)
+        self.root.current_text_box = self.root.user_code_Entry
+
+        tooltip = ToolTip(self.root.user_code_Entry)
+
+        def invalid_message_(text, is_success_message):
+            tooltip.hidetip()
+            tooltip.showtip(text, True, is_success_message)
+
+        self.root.spacer_label(user_code_Frame)
+
+        user_code_confrim_Button = ttk.Button(user_code_Frame, text=CONFIRM_TEXT, command=lambda: self.download_validate_code(confirm=True, code_message=invalid_message_))
+        user_code_confrim_Button.grid(pady=MENU_PADDING_1)
+
+        user_code_cancel_Button = ttk.Button(user_code_Frame, text=CANCEL_TEXT, command=lambda: self.root.user_code.destroy())
+        user_code_cancel_Button.grid(pady=MENU_PADDING_1)
+
+        support_title_Label = self.root.menu_title_LABEL_SET(user_code_Frame, text=SUPPORT_UVR_TEXT, width=20)
+        support_title_Label.grid(pady=MENU_PADDING_1)
+
+        support_sub_Label = tk.Label(user_code_Frame, text=GET_DL_VIP_CODE_TEXT, font=(MAIN_FONT_NAME, f"{FONT_SIZE_1}"), foreground=FG_COLOR)
+        support_sub_Label.grid(pady=MENU_PADDING_1)
+
+        uvr_patreon_Button = ttk.Button(user_code_Frame, text=UVR_PATREON_LINK_TEXT, command=lambda: webbrowser.open_new_tab(DONATE_LINK_PATREON))
+        uvr_patreon_Button.grid(pady=MENU_PADDING_1)
+
+        bmac_patreon_Button = ttk.Button(user_code_Frame, text=BMAC_UVR_TEXT, command=lambda: webbrowser.open_new_tab(DONATE_LINK_BMAC))
+        bmac_patreon_Button.grid(pady=MENU_PADDING_1)
+
+        self.root.menu_placement(self.root.user_code, INPUT_CODE_TEXT, pop_up=True)
+

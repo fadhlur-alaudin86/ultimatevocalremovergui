@@ -41,6 +41,7 @@ from gui_data.constants import (
     ENSEMBLE_LISTBOX_HELP,
     ENSEMBLE_MAIN_STEM,
     ENSEMBLE_MAIN_STEM_HELP,
+    ENSEMBLE_MODEL_SETTINGS_HELP,
     ENSEMBLE_OPTIONS,
     ENSEMBLE_OPTIONS_MAIN_LABEL,
     ENSEMBLE_TYPE,
@@ -183,6 +184,10 @@ class EnsemblePanel:
             self.parent,
             image=self.root.help_img,
             command=self.root.open_ensemble_model_settings,
+        )
+        self.root.help_hints(
+            self.root.ensemble_model_settings_button,
+            text=ENSEMBLE_MODEL_SETTINGS_HELP,
         )
         self.root.ensemble_model_settings_button_place = (
             lambda: self.root.ensemble_model_settings_button.place(

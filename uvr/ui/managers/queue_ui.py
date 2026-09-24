@@ -33,30 +33,47 @@ logger = logging.getLogger(__name__)
 class QueueUI:
     """Manages the UI presentation and worker processing loop for the task queue."""
 
+    _COLLAPSED_HEIGHT = 30
+    _LABEL_COLLAPSED = "Processing Queue  [+]"
+    _LABEL_EXPANDED = "Processing Queue  [-]"
+
     def __init__(self, root: Any) -> None:
         self.root = root
+        self._is_queue_expanded: bool = False
 
     def setup_ui(self) -> None:
         """Initializes the queue frame, treeview, and control buttons on the root window."""
+        # Outer wrapper — always visible; height toggles between collapsed/expanded
         self.root.queue_frame = ttk.Frame(master=self.root)
         self.root.queue_frame.place(
             x=15,
             y=Y_OFFSET_QUEUE_1080P,
             width=-30,
-            height=self.root.QUEUE_HEIGHT,
+            height=self._COLLAPSED_HEIGHT,
             relx=0,
             rely=0,
             relwidth=1,
             relheight=0,
         )
 
-        queue_buttons_frame = ttk.Frame(self.root.queue_frame)
+        # Toggle header button
+        self._toggle_btn = ttk.Button(
+            self.root.queue_frame,
+            text=self._LABEL_COLLAPSED,
+            command=self.toggle_queue_visibility,
+        )
+        self._toggle_btn.pack(side="top", fill="x")
+
+        # Inner content frame — shown/hidden by toggle
+        self._queue_content = ttk.Frame(self.root.queue_frame)
+
+        queue_buttons_frame = ttk.Frame(self._queue_content)
         queue_buttons_frame.pack(side="bottom", fill="x", pady=5)
 
-        scrollbar = ttk.Scrollbar(self.root.queue_frame, orient="vertical")
+        scrollbar = ttk.Scrollbar(self._queue_content, orient="vertical")
 
         self.root.queue_treeview = ttk.Treeview(
-            self.root.queue_frame,
+            self._queue_content,
             columns=("id", "inputs", "method", "status"),
             show="headings",
             yscrollcommand=scrollbar.set,
@@ -137,6 +154,20 @@ class QueueUI:
         self.root.queue_treeview.bind("<<TreeviewSelect>>", self.queue_selection_changed)
 
         self.update_queue_ui_display()
+
+    def toggle_queue_visibility(self) -> None:
+        """Expand or collapse the queue treeview panel."""
+        self._is_queue_expanded = not self._is_queue_expanded
+        if self._is_queue_expanded:
+            self._queue_content.pack(side="top", fill="both", expand=True)
+            self._toggle_btn.configure(text=self._LABEL_EXPANDED)
+            self.root.queue_frame.place_configure(height=self.root.QUEUE_HEIGHT)
+        else:
+            self._queue_content.pack_forget()
+            self._toggle_btn.configure(text=self._LABEL_COLLAPSED)
+            self.root.queue_frame.place_configure(height=self._COLLAPSED_HEIGHT)
+
+
 
     def start_worker(self) -> None:
         """Starts the queue worker thread if it is not already running."""

@@ -24,22 +24,18 @@ from gui_data.app_size_values import (
     OPTIONS_FRAME_WIDTH,
     OPTIONS_FRAME_X,
     OPTIONS_FRAME_Y,
-    RADIOBUTTON_HEIGHT,
-    RADIOBUTTON_WIDTH,
-    RADIOBUTTON_X_FLAC,
-    RADIOBUTTON_X_MP3,
-    RADIOBUTTON_X_WAV,
-    RADIOBUTTON_Y,
 )
 from gui_data.constants import (
     ALL_STEMS,
     AUDIO_TOOLS,
+    BG_COLOR,
     CHOOSE_ENSEMBLE_OPTION,
     CHOOSE_PROC_METHOD_MAIN_LABEL,
     CHOOSE_STEM_PAIR,
     CHOSEN_PROCESS_METHOD_HELP,
     DEMUCS_ARCH_TYPE,
     ENSEMBLE_MODE,
+    FG_COLOR,
     FLAC,
     FORMAT_SETTING_HELP,
     FOUR_STEM_ENSEMBLE,
@@ -110,59 +106,53 @@ class OptionsCoordinator:
         self.ensemble_panel.parent = options_frame
         self.audio_tools_panel.parent = options_frame
 
+        # Save Format — grouped in a labelled container for clarity
         # Save Format
+        self.root.format_group = ttk.Frame(options_frame)
+        self.root.format_group.place(
+            x=0,
+            y=7,
+            width=0,
+            height=28,
+            relx=1 / 3,
+            rely=0,
+            relwidth=2 / 3,
+        )
+
+        self.root.format_label = ttk.Label(
+            master=self.root.format_group,
+            text="OUTPUT FORMAT:",
+            background=BG_COLOR,
+            font=self.root.font_set,
+            foreground=FG_COLOR,
+        )
+        self.root.format_label.pack(side="left", padx=(10, 15))
+
         self.root.wav_button = ttk.Radiobutton(
-            master=options_frame,
+            master=self.root.format_group,
             text=WAV,
             variable=self.root.save_format_var,
             value=WAV,
         )
-        self.root.wav_button.place(
-            x=RADIOBUTTON_X_WAV,
-            y=RADIOBUTTON_Y,
-            width=RADIOBUTTON_WIDTH,
-            height=RADIOBUTTON_HEIGHT,
-            relx=0,
-            rely=0 / self.root.COL2_ROWS,
-            relwidth=1 / 3,
-            relheight=1 / self.root.COL2_ROWS,
-        )
+        self.root.wav_button.pack(side="left", padx=10)
         self.root.help_hints(self.root.wav_button, text=f"{FORMAT_SETTING_HELP}{WAV}")
 
         self.root.flac_button = ttk.Radiobutton(
-            master=options_frame,
+            master=self.root.format_group,
             text=FLAC,
             variable=self.root.save_format_var,
             value=FLAC,
         )
-        self.root.flac_button.place(
-            x=RADIOBUTTON_X_FLAC,
-            y=RADIOBUTTON_Y,
-            width=RADIOBUTTON_WIDTH,
-            height=RADIOBUTTON_HEIGHT,
-            relx=1 / 3,
-            rely=0 / self.root.COL2_ROWS,
-            relwidth=1 / 3,
-            relheight=1 / self.root.COL2_ROWS,
-        )
+        self.root.flac_button.pack(side="left", padx=10)
         self.root.help_hints(self.root.flac_button, text=f"{FORMAT_SETTING_HELP}{FLAC}")
 
         self.root.mp3_button = ttk.Radiobutton(
-            master=options_frame,
+            master=self.root.format_group,
             text=MP3,
             variable=self.root.save_format_var,
             value=MP3,
         )
-        self.root.mp3_button.place(
-            x=RADIOBUTTON_X_MP3,
-            y=RADIOBUTTON_Y,
-            width=RADIOBUTTON_WIDTH,
-            height=RADIOBUTTON_HEIGHT,
-            relx=2 / 3,
-            rely=0 / self.root.COL2_ROWS,
-            relwidth=1 / 3,
-            relheight=1 / self.root.COL2_ROWS,
-        )
+        self.root.mp3_button.pack(side="left", padx=10)
         self.root.help_hints(self.root.mp3_button, text=f"{FORMAT_SETTING_HELP}{MP3}")
 
         # Choose Conversion Method
@@ -199,48 +189,38 @@ class OptionsCoordinator:
             relwidth=1 / 3,
             relheight=1 / self.root.COL1_ROWS,
         )
-        self.root.help_hints(
-            self.root.chosen_process_method_Label, text=CHOSEN_PROCESS_METHOD_HELP
-        )
+        self.root.help_hints(self.root.chosen_process_method_Label, text=CHOSEN_PROCESS_METHOD_HELP)
 
         # Choose Settings Option
         self.root.save_current_settings_Label = self.root.main_window_LABEL_SET(
             options_frame, SELECT_SAVED_SETTINGS_MAIN_LABEL
         )
-        self.root.save_current_settings_Label_place = (
-            lambda: self.root.save_current_settings_Label.place(
-                x=MAIN_ROW_2_X[0],
-                y=LOW_MENU_Y[0],
-                width=0,
-                height=LABEL_HEIGHT,
-                relx=2 / 3,
-                rely=6 / self.root.COL1_ROWS,
-                relwidth=1 / 3,
-                relheight=1 / self.root.COL1_ROWS,
-            )
+        self.root.save_current_settings_Label_place = lambda: self.root.save_current_settings_Label.place(
+            x=MAIN_ROW_2_X[0],
+            y=LOW_MENU_Y[0],
+            width=0,
+            height=LABEL_HEIGHT,
+            relx=2 / 3,
+            rely=6 / self.root.COL1_ROWS,
+            relwidth=1 / 3,
+            relheight=1 / self.root.COL1_ROWS,
         )
         self.root.save_current_settings_Option = ComboBoxMenu(
             options_frame,
             textvariable=self.root.save_current_settings_var,
-            command=lambda e: self.root.selection_action_saved_settings(
-                self.root.save_current_settings_var.get()
-            ),
+            command=lambda e: self.root.selection_action_saved_settings(self.root.save_current_settings_var.get()),
         )
-        self.root.save_current_settings_Option_place = (
-            lambda: self.root.save_current_settings_Option.place(
-                x=MAIN_ROW_2_X[1],
-                y=LOW_MENU_Y[1],
-                width=MAIN_ROW_WIDTH,
-                height=OPTION_HEIGHT,
-                relx=2 / 3,
-                rely=7 / self.root.COL1_ROWS,
-                relwidth=1 / 3,
-                relheight=1 / self.root.COL1_ROWS,
-            )
+        self.root.save_current_settings_Option_place = lambda: self.root.save_current_settings_Option.place(
+            x=MAIN_ROW_2_X[1],
+            y=LOW_MENU_Y[1],
+            width=MAIN_ROW_WIDTH,
+            height=OPTION_HEIGHT,
+            relx=2 / 3,
+            rely=7 / self.root.COL1_ROWS,
+            relwidth=1 / 3,
+            relheight=1 / self.root.COL1_ROWS,
         )
-        self.root.help_hints(
-            self.root.save_current_settings_Label, text=SAVE_CURRENT_SETTINGS_HELP
-        )
+        self.root.help_hints(self.root.save_current_settings_Label, text=SAVE_CURRENT_SETTINGS_HELP)
 
         # Initialize sub-panels
         self.mdx_panel.setup_ui()
@@ -255,25 +235,21 @@ class OptionsCoordinator:
             text=GPU_CONVERSION_MAIN_LABEL,
             variable=self.root.is_gpu_conversion_var,
         )
-        self.root.is_gpu_conversion_Option_place = (
-            lambda: self.root.is_gpu_conversion_Option.place(
-                x=CHECK_BOX_X,
-                y=CHECK_BOX_Y,
-                width=CHECK_BOX_WIDTH,
-                height=CHECK_BOX_HEIGHT,
-                relx=1 / 3,
-                rely=5 / self.root.COL2_ROWS,
-                relwidth=1 / 3,
-                relheight=1 / self.root.COL2_ROWS,
-            )
+        self.root.is_gpu_conversion_Option_place = lambda: self.root.is_gpu_conversion_Option.place(
+            x=CHECK_BOX_X,
+            y=CHECK_BOX_Y,
+            width=CHECK_BOX_WIDTH,
+            height=CHECK_BOX_HEIGHT,
+            relx=1 / 3,
+            rely=5 / self.root.COL2_ROWS,
+            relwidth=1 / 3,
+            relheight=1 / self.root.COL2_ROWS,
         )
         self.root.is_gpu_conversion_Disable = lambda: (
             self.root.is_gpu_conversion_Option.configure(state=tk.DISABLED),
             self.root.is_gpu_conversion_var.set(False),
         )
-        self.root.is_gpu_conversion_Enable = (
-            lambda: self.root.is_gpu_conversion_Option.configure(state=tk.NORMAL)
-        )
+        self.root.is_gpu_conversion_Enable = lambda: self.root.is_gpu_conversion_Option.configure(state=tk.NORMAL)
         self.root.help_hints(self.root.is_gpu_conversion_Option, text=IS_GPU_CONVERSION_HELP)
 
         self.root.is_half_precision_Option = ttk.Checkbutton(
@@ -281,17 +257,15 @@ class OptionsCoordinator:
             text=HALF_PRECISION_MAIN_LABEL,
             variable=self.root.is_half_precision_var,
         )
-        self.root.is_half_precision_Option_place = (
-            lambda: self.root.is_half_precision_Option.place(
-                x=CHECK_BOX_X,
-                y=CHECK_BOX_Y,
-                width=CHECK_BOX_WIDTH,
-                height=CHECK_BOX_HEIGHT,
-                relx=1 / 3,
-                rely=6 / self.root.COL2_ROWS,
-                relwidth=1 / 3,
-                relheight=1 / self.root.COL2_ROWS,
-            )
+        self.root.is_half_precision_Option_place = lambda: self.root.is_half_precision_Option.place(
+            x=CHECK_BOX_X,
+            y=CHECK_BOX_Y,
+            width=CHECK_BOX_WIDTH,
+            height=CHECK_BOX_HEIGHT,
+            relx=1 / 3,
+            rely=6 / self.root.COL2_ROWS,
+            relwidth=1 / 3,
+            relheight=1 / self.root.COL2_ROWS,
         )
         self.root.help_hints(self.root.is_half_precision_Option, text=IS_HALF_PRECISION_HELP)
 
@@ -301,20 +275,18 @@ class OptionsCoordinator:
             variable=self.root.is_primary_stem_only_var,
             command=lambda: self.root.is_primary_stem_only_Option_toggle(),
         )
-        self.root.is_primary_stem_only_Option_place = (
-            lambda: self.root.is_primary_stem_only_Option.place(
-                x=CHECK_BOX_X,
-                y=CHECK_BOX_Y,
-                width=CHECK_BOX_WIDTH,
-                height=CHECK_BOX_HEIGHT,
-                relx=1 / 3,
-                rely=7 / self.root.COL2_ROWS,
-                relwidth=1 / 3,
-                relheight=1 / self.root.COL2_ROWS,
-            )
+        self.root.is_primary_stem_only_Option_place = lambda: self.root.is_primary_stem_only_Option.place(
+            x=CHECK_BOX_X,
+            y=CHECK_BOX_Y,
+            width=CHECK_BOX_WIDTH,
+            height=CHECK_BOX_HEIGHT,
+            relx=1 / 3,
+            rely=7 / self.root.COL2_ROWS,
+            relwidth=1 / 3,
+            relheight=1 / self.root.COL2_ROWS,
         )
-        self.root.is_primary_stem_only_Option_toggle = (
-            lambda: self.root.is_secondary_stem_only_var.set(False)
+        self.root.is_primary_stem_only_Option_toggle = lambda: (
+            self.root.is_secondary_stem_only_var.set(False)
             if self.root.is_primary_stem_only_var.get()
             else self.root.is_secondary_stem_only_Option.configure(state=tk.NORMAL)
         )
@@ -326,20 +298,18 @@ class OptionsCoordinator:
             variable=self.root.is_secondary_stem_only_var,
             command=lambda: self.root.is_secondary_stem_only_Option_toggle(),
         )
-        self.root.is_secondary_stem_only_Option_place = (
-            lambda: self.root.is_secondary_stem_only_Option.place(
-                x=CHECK_BOX_X,
-                y=CHECK_BOX_Y,
-                width=CHECK_BOX_WIDTH,
-                height=CHECK_BOX_HEIGHT,
-                relx=1 / 3,
-                rely=8 / self.root.COL2_ROWS,
-                relwidth=1 / 3,
-                relheight=1 / self.root.COL2_ROWS,
-            )
+        self.root.is_secondary_stem_only_Option_place = lambda: self.root.is_secondary_stem_only_Option.place(
+            x=CHECK_BOX_X,
+            y=CHECK_BOX_Y,
+            width=CHECK_BOX_WIDTH,
+            height=CHECK_BOX_HEIGHT,
+            relx=1 / 3,
+            rely=8 / self.root.COL2_ROWS,
+            relwidth=1 / 3,
+            relheight=1 / self.root.COL2_ROWS,
         )
-        self.root.is_secondary_stem_only_Option_toggle = (
-            lambda: self.root.is_primary_stem_only_var.set(False)
+        self.root.is_secondary_stem_only_Option_toggle = lambda: (
+            self.root.is_primary_stem_only_var.set(False)
             if self.root.is_secondary_stem_only_var.get()
             else self.root.is_primary_stem_only_Option.configure(state=tk.NORMAL)
         )
@@ -354,17 +324,15 @@ class OptionsCoordinator:
             textvariable=self.root.model_sample_mode_duration_checkbox_var,
             variable=self.root.model_sample_mode_var,
         )
-        self.root.model_sample_mode_Option_place = (
-            lambda rely=9: self.root.model_sample_mode_Option.place(
-                x=CHECK_BOX_X,
-                y=CHECK_BOX_Y,
-                width=CHECK_BOX_WIDTH,
-                height=CHECK_BOX_HEIGHT,
-                relx=1 / 3,
-                rely=rely / self.root.COL2_ROWS,
-                relwidth=1 / 3,
-                relheight=1 / self.root.COL2_ROWS,
-            )
+        self.root.model_sample_mode_Option_place = lambda rely=9: self.root.model_sample_mode_Option.place(
+            x=CHECK_BOX_X,
+            y=CHECK_BOX_Y,
+            width=CHECK_BOX_WIDTH,
+            height=CHECK_BOX_HEIGHT,
+            relx=1 / 3,
+            rely=rely / self.root.COL2_ROWS,
+            relwidth=1 / 3,
+            relheight=1 / self.root.COL2_ROWS,
         )
         self.root.help_hints(self.root.model_sample_mode_Option, text=MODEL_SAMPLE_MODE_HELP)
 
@@ -611,9 +579,7 @@ class OptionsCoordinator:
             if ensemble_choice in [CHOOSE_STEM_PAIR, FOUR_STEM_ENSEMBLE, MULTI_STEM_ENSEMBLE]:
                 self.root.update_stem_checkbox_labels(PRIMARY_STEM, disable_boxes=True)
             else:
-                self.root.update_stem_checkbox_labels(
-                    self.root.return_ensemble_stems(is_primary=True)
-                )
+                self.root.update_stem_checkbox_labels(self.root.return_ensemble_stems(is_primary=True))
                 self.root.is_stem_only_Options_Enable()
             return
 
