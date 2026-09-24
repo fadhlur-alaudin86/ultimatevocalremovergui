@@ -8,8 +8,12 @@ __pycache__/
 venv/
 env/
 
+# Local developer tooling
+.codegraph/
+
 # App-specific runtime/session data
 data.pkl
+data.json
 gui_data/cr_text.txt
 
 # Temp directories
@@ -22,6 +26,7 @@ tmp/
 
 # Log
 error.log
+*.log
 
 # User Saved Settings & Ensembles
 gui_data/saved_settings/*.json

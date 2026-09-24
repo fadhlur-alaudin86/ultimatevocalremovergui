@@ -292,7 +292,7 @@ def demucs_segments(demucs_segment, demucs_model):
             else:
                 if segment is not None:
                     sub.segment = segment
-        except:
+        except Exception:
             segment = None
             if isinstance(demucs_model, BagOfModels):
                 if segment is not None:

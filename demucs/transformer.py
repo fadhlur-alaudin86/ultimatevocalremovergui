@@ -548,7 +548,7 @@ class CrossTransformerEncoder(nn.Module):
         weight_pos_embed: float = 1.0,
         cape_mean_normalize: bool = True,
         cape_augment: bool = True,
-        cape_glob_loc_scale: list = [5000.0, 1.0, 1.4],
+        cape_glob_loc_scale: list | None = None,
         sparse_self_attn: bool = False,
         sparse_cross_attn: bool = False,
         mask_type: str = "diag",
@@ -577,7 +577,7 @@ class CrossTransformerEncoder(nn.Module):
         if emb == "cape":
             self.cape_mean_normalize = cape_mean_normalize
             self.cape_augment = cape_augment
-            self.cape_glob_loc_scale = cape_glob_loc_scale
+            self.cape_glob_loc_scale = cape_glob_loc_scale if cape_glob_loc_scale is not None else [5000.0, 1.0, 1.4]
         if emb == "scaled":
             self.position_embeddings = ScaledEmbedding(max_positions, dim, scale=0.2)
 

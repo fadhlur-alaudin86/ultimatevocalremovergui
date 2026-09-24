@@ -468,8 +468,11 @@ class SDblock(nn.Module):
     - depths (list of int): List specifying the convolution depths for low, mid, and high frequency bands.
     """
 
-    def __init__(self, channels_in, channels_out, band_configs={}, conv_config={}, depths=[3, 2, 1], kernel_size=3):
+    def __init__(self, channels_in, channels_out, band_configs=None, conv_config=None, depths=None, kernel_size=3):
         super(SDblock, self).__init__()
+        band_configs = band_configs if band_configs is not None else {}
+        conv_config = conv_config if conv_config is not None else {}
+        depths = depths if depths is not None else [3, 2, 1]
         self.SDlayer = SDlayer(channels_in, channels_out, band_configs)
 
         # Dynamically create convolution modules for each band based on depths

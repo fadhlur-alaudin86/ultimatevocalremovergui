@@ -113,7 +113,7 @@ class HTDemucs(nn.Module):
         t_sin_random_shift=0,
         t_cape_mean_normalize=True,
         t_cape_augment=True,
-        t_cape_glob_loc_scale=[5000.0, 1.0, 1.4],
+        t_cape_glob_loc_scale=None,
         t_sparse_self_attn=False,
         t_sparse_cross_attn=False,
         t_mask_type="diag",
@@ -221,6 +221,8 @@ class HTDemucs(nn.Module):
                 training is used during inference.
         """
         super().__init__()
+        if t_cape_glob_loc_scale is None:
+            t_cape_glob_loc_scale = [5000.0, 1.0, 1.4]
         self.cac = cac
         self.wiener_residual = wiener_residual
         self.audio_channels = audio_channels

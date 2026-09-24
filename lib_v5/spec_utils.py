@@ -288,7 +288,9 @@ def wave_to_spectrogram(wave, hop_length, n_fft, mp, band, is_v51_model=False):
 
     return spec
 
-def spectrogram_to_wave(spec, hop_length=1024, mp={}, band=0, is_v51_model=True):
+def spectrogram_to_wave(spec, hop_length=1024, mp=None, band=0, is_v51_model=True):
+    if mp is None:
+        mp = {}
     spec_left = np.asfortranarray(spec[0])
     spec_right = np.asfortranarray(spec[1])
     
@@ -950,6 +952,8 @@ def combine_arrarys(audio_sources, is_swap=False):
         source += v
         
     return source
+
+combine_arrays = combine_arrarys
     
 def combine_audio(paths: list, audio_file_base=None, wav_type_set='FLOAT', save_format=None):
     

@@ -152,7 +152,7 @@ class DnDWrapper:
             # FIXME: why doesn't the "return 'break'" mechanism work here??
             #cmd = ('%sif {"[%s %s]" == "break"} break\n' % (add and '+' or '',
             #                              funcid, self._subst_format_str_dnd))
-            cmd = '%s%s %s' %(add and '+' or '', funcid,
+            cmd = '%s%s %s' %((add and '+') or '', funcid,
                                     self._subst_format_str_dnd)
             self.tk.call(what + (sequence, cmd))
             return funcid

@@ -168,8 +168,8 @@ VOCAL_STEM_ONLY = f'{VOCAL_STEM} Only'
 INST_STEM_ONLY = f'{INST_STEM} Only'
 PRIMARY_STEM_ONLY = f'{PRIMARY_STEM} Only'
 
-IS_SAVE_INST_ONLY = f'save_only_inst'
-IS_SAVE_VOC_ONLY = f'save_only_voc'
+IS_SAVE_INST_ONLY = 'save_only_inst'
+IS_SAVE_VOC_ONLY = 'save_only_voc'
 
 DEVERB_MAPPER = {'Main Vocals Only':VOCAL_STEM, 
                  'Lead Vocals Only':LEAD_VOCAL_STEM_LABEL, 

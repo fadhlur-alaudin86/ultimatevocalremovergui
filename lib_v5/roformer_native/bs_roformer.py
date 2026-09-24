@@ -547,7 +547,7 @@ class BSRoformer(Module):
                 window=stft_window,
                 return_complex=True
             )
-        except:
+        except Exception:
             stft_repr = torch.stft(
                 raw_audio.cpu() if x_is_mps else raw_audio,
                 **self.stft_kwargs,
@@ -650,7 +650,7 @@ class BSRoformer(Module):
 
         try:
             recon_audio = torch.istft(stft_repr, **self.stft_kwargs, window=stft_window, return_complex=False, length=raw_audio.shape[-1])
-        except:
+        except Exception:
             recon_audio = torch.istft(
                 stft_repr.cpu() if x_is_mps else stft_repr,
                 **self.stft_kwargs,

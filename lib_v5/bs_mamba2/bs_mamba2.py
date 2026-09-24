@@ -744,7 +744,7 @@ if __name__ == "__main__":
         "dim_head": 48,
         "num_stems": 3,
     }
-    model = BSModel(**cfg).cuda()
+    model = BSMamba2Model(**cfg).cuda()
     print(f"Total number of parameters: {sum([p.numel() for p in model.mask_estimators.parameters()])}")
 
     with torch.cuda.amp.autocast():

@@ -1,0 +1,48 @@
+# Ruff configuration for Ultimate Vocal Remover GUI (UVR)
+target-version = "py311"
+line-length = 120
+
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    ".ruff_cache",
+    "build",
+    "dist",
+    "lib_v5",                   # Vendored deep learning model architectures
+    "demucs",                   # Vendored Demucs model architecture
+    "gui_data/tkinterdnd2",     # Vendored TkinterDnD2 wrapper
+    "gui_data/sv_ttk",          # Vendored Sun Valley TTK theme
+]
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes (syntax, undefined variables, imports)
+    "B",    # flake8-bugbear (common bugs and design issues)
+    "I",    # isort (import sorting)
+    "UP",   # pyupgrade (Python 3.11+ modernization)
+    "RUF",  # Ruff-specific rules
+]
+
+ignore = [
+    "E501",     # Line too long (managed by layout/display strings)
+    "E731",     # Do not assign a lambda expression (pervasive in Tkinter callbacks)
+    "E402",     # Module level import not at top of file (conditional PyTorch/Tkinter setup)
+    "F403",     # Star imports used in legacy UI code
+    "F405",     # Undefined from star imports in legacy UI code
+    "RUF012",   # Mutable class attributes (PyTorch / Tkinter widget state)
+    "RUF005",   # Collection literal concatenation (legacy tuple arithmetic)
+    "RUF015",   # list(dict.keys())[0] vs next(iter(dict))
+    "B905",     # zip() without explicit strict= (Python 3.10+)
+    "W291",     # Trailing whitespace (legacy comments/monolith)
+    "W292",     # Missing newline at end of file
+    "W293",     # Blank line contains whitespace (legacy UI indentation)
+]
+
+[lint.per-file-ignores]
+"__init__.py" = ["F401"]      # Allow re-exports in package init files
+"separate.py" = ["F401"]      # Backward-compatible facade layer
+"UVR.py" = ["F401", "F841"]   # Legacy monolithic GUI file
+"tests/*" = ["F841"]          # Test assertions/fixtures

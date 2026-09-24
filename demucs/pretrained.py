@@ -74,7 +74,7 @@ def get_model(name: str,
         bag_repo = BagOnlyRepo(REMOTE_ROOT, model_repo)
     else:
         if not repo.is_dir():
-            fatal(f"{repo} must exist and be a directory.")
+            raise FileNotFoundError(f"{repo} must exist and be a directory.")
         model_repo = LocalRepo(repo)
         bag_repo = BagOnlyRepo(repo, model_repo)
     any_repo = AnyModelRepo(model_repo, bag_repo)

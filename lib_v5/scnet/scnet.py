@@ -195,8 +195,11 @@ class SDblock(nn.Module):
     - depths (list of int): List specifying the convolution depths for low, mid, and high frequency bands.
     """
 
-    def __init__(self, channels_in, channels_out, band_configs={}, conv_config={}, depths=[3, 2, 1], kernel_size=3):
+    def __init__(self, channels_in, channels_out, band_configs=None, conv_config=None, depths=None, kernel_size=3):
         super(SDblock, self).__init__()
+        band_configs = band_configs if band_configs is not None else {}
+        conv_config = conv_config if conv_config is not None else {}
+        depths = depths if depths is not None else [3, 2, 1]
         self.SDlayer = SDlayer(channels_in, channels_out, band_configs)
 
         # Dynamically create convolution modules for each band based on depths
@@ -251,21 +254,21 @@ class SCNet(nn.Module):
     """
 
     def __init__(self,
-                 sources=['drums', 'bass', 'other', 'vocals'],
+                 sources=None,
                  audio_channels=2,
                  # Main structure
-                 dims=[4, 32, 64, 128],  # dims = [4, 64, 128, 256] in SCNet-large
+                 dims=None,  # dims = [4, 64, 128, 256] in SCNet-large
                  # STFT
                  nfft=4096,
                  hop_size=1024,
                  win_size=4096,
                  normalized=True,
                  # SD/SU layer
-                 band_SR=[0.175, 0.392, 0.433],
-                 band_stride=[1, 4, 16],
-                 band_kernel=[3, 4, 16],
+                 band_SR=None,
+                 band_stride=None,
+                 band_kernel=None,
                  # Convolution Module
-                 conv_depths=[3, 2, 1],
+                 conv_depths=None,
                  compress=4,
                  conv_kernel=3,
                  # Dual-path RNN
@@ -273,6 +276,12 @@ class SCNet(nn.Module):
                  expand=1,
                  ):
         super().__init__()
+        sources = ['drums', 'bass', 'other', 'vocals'] if sources is None else sources
+        dims = [4, 32, 64, 128] if dims is None else dims
+        band_SR = [0.175, 0.392, 0.433] if band_SR is None else band_SR
+        band_stride = [1, 4, 16] if band_stride is None else band_stride
+        band_kernel = [3, 4, 16] if band_kernel is None else band_kernel
+        conv_depths = [3, 2, 1] if conv_depths is None else conv_depths
         self.sources = sources
         self.audio_channels = audio_channels
         self.dims = dims

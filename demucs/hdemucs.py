@@ -64,7 +64,7 @@ class ScaledEmbedding(nn.Module):
 
 class HEncLayer(nn.Module):
     def __init__(self, chin, chout, kernel_size=8, stride=4, norm_groups=1, empty=False,
-                 freq=True, dconv=True, norm=True, context=0, dconv_kw={}, pad=True,
+                 freq=True, dconv=True, norm=True, context=0, dconv_kw=None, pad=True,
                  rewrite=True):
         """Encoder layer. This used both by the time and the frequency branch.
 
@@ -84,6 +84,8 @@ class HEncLayer(nn.Module):
             rewrite: add 1x1 conv at the end of the layer.
         """
         super().__init__()
+        if dconv_kw is None:
+            dconv_kw = {}
         norm_fn = lambda d: nn.Identity()  # noqa
         if norm:
             norm_fn = lambda d: nn.GroupNorm(norm_groups, d)  # noqa
@@ -251,12 +253,14 @@ class MultiWrap(nn.Module):
 
 class HDecLayer(nn.Module):
     def __init__(self, chin, chout, last=False, kernel_size=8, stride=4, norm_groups=1, empty=False,
-                 freq=True, dconv=True, norm=True, context=1, dconv_kw={}, pad=True,
+                 freq=True, dconv=True, norm=True, context=1, dconv_kw=None, pad=True,
                  context_freq=True, rewrite=True):
         """
         Same as HEncLayer but for decoder. See `HEncLayer` for documentation.
         """
         super().__init__()
+        if dconv_kw is None:
+            dconv_kw = {}
         norm_fn = lambda d: nn.Identity()  # noqa
         if norm:
             norm_fn = lambda d: nn.GroupNorm(norm_groups, d)  # noqa

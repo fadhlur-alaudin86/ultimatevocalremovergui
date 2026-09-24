@@ -1,8 +1,8 @@
 import os
 import platform
+
+from PIL import Image, ImageTk
 from screeninfo import get_monitors
-from PIL import Image
-from PIL import ImageTk
 
 OPERATING_SYSTEM = platform.system()
 
@@ -70,12 +70,12 @@ try:
         determined_size = SCREEN_SIZE_VALUES["small"]
     else:
         determined_size = SCREEN_SIZE_VALUES["medium"]
-except:
+except Exception:
         determined_size = SCREEN_SIZE_VALUES["normal"]
 
 image_scale_1, image_scale_2 = 20, 30
 
-class ImagePath():
+class ImagePath:
     def __init__(self, base_path):
         img_path = os.path.join(base_path, 'gui_data', 'img')
         credits_path = os.path.join(img_path, 'credits.png')
@@ -111,7 +111,7 @@ class ImagePath():
         self.copy_img = self.open_image(path=copy_img_path, size=(image_scale_2, image_scale_2))
         self.credits_img = self.open_image(path=credits_path, size=determined_size["credits_img"])
 
-    def open_image(self, path: str, size: tuple = None, keep_aspect: bool = True, rotate: int = 0) -> ImageTk.PhotoImage:
+    def open_image(self, path: str, size: tuple | None = None, keep_aspect: bool = True, rotate: int = 0) -> ImageTk.PhotoImage:
         """
         Open the image on the path and apply given settings\n
         Paramaters:

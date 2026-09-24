@@ -1,0 +1,8 @@
+{
+    "process_method": "VR Architecture",
+    "save_format": "WAV",
+    "wav_type_set": "PCM_16",
+    "is_normalization": true,
+    "is_secondary_stem_only": false,
+    "is_primary_stem_only": false
+}
