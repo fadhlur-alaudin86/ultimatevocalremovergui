@@ -17,6 +17,7 @@ from lib_v5 import spec_utils
 from uvr.core.device_manager import DeviceManager
 from uvr.models.base import (
     SeparateAttributes,
+    check_control,
     clear_gpu_cache,
     prepare_mix,
 )
@@ -218,20 +219,30 @@ class SeparateDemucs(SeparateAttributes):
 
         with torch.no_grad():
             autocast_device = DeviceManager.autocast_device(self.device)
+            # The vendored demucs apply_* functions drive per-segment progress
+            # through this callback, so it doubles as the cooperative
+            # pause/cancel checkpoint inside external inference code.
+            base_progress = self.set_progress_bar
+
+            def checked_progress(*args, **kwargs):
+                check_control(self.pause_event, self.cancel_event)
+                return base_progress(*args, **kwargs)
+
+            check_control(self.pause_event, self.cancel_event)
             with torch.autocast(device_type=autocast_device, dtype=torch.float16, enabled=self.is_half_precision and autocast_device == 'cuda'):
                 if self.demucs_version == DEMUCS_V1:
                     sources = apply_model_v1(self.demucs,
                                                 mix_infer.to(self.device),
                                                 self.shifts,
                                                 self.is_split_mode,
-                                                set_progress_bar=self.set_progress_bar)
+                                                set_progress_bar=checked_progress)
                 elif self.demucs_version == DEMUCS_V2:
                     sources = apply_model_v2(self.demucs,
                                                 mix_infer.to(self.device),
                                                 self.shifts,
                                                 self.is_split_mode,
                                                 self.overlap,
-                                                set_progress_bar=self.set_progress_bar)
+                                                set_progress_bar=checked_progress)
                 else:
                     sources = apply_model(self.demucs,
                                             mix_infer[None],
@@ -239,7 +250,7 @@ class SeparateDemucs(SeparateAttributes):
                                             self.is_split_mode,
                                             self.overlap,
                                             static_shifts=1 if self.shifts == 0 else self.shifts,
-                                            set_progress_bar=self.set_progress_bar,
+                                            set_progress_bar=checked_progress,
                                             device=self.device)[0]
 
         sources = (sources * ref.std() + ref.mean()).cpu().numpy()

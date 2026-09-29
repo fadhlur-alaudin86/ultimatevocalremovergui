@@ -13,6 +13,7 @@ from lib_v5 import spec_utils
 from uvr.core.device_manager import DeviceManager
 from uvr.models.base import (
     SeparateAttributes,
+    check_control,
     clear_gpu_cache,
     cpu,
     prepare_mix,
@@ -333,6 +334,7 @@ class SeparateMDXC(SeparateAttributes):
         with torch.no_grad():
             cnt = 0
             for batch in batches:
+                check_control(self.pause_event, self.cancel_event)
                 self.running_inference_progress_bar(len(batches))
                 autocast_device = DeviceManager.autocast_device(self.device)
                 with torch.autocast(device_type=autocast_device, dtype=torch.float16, enabled=self.is_half_precision and autocast_device == 'cuda'):

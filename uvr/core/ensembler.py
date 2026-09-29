@@ -11,9 +11,9 @@ from typing import Any
 
 from gui_data.constants import *
 from lib_v5 import spec_utils
-from separate import save_format
 from uvr.constants import ENSEMBLE_TEMP_PATH
 from uvr.core.model_data import ModelData, get_app_root
+from uvr.models.base import save_format
 
 logger = logging.getLogger(__name__)
 

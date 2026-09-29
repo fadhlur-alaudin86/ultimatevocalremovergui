@@ -15,6 +15,7 @@ from lib_v5.vr_network import nets, nets_new
 from uvr.core.device_manager import DeviceManager
 from uvr.models.base import (
     SeparateAttributes,
+    check_control,
     clear_gpu_cache,
     cpu,
     rerun_mp3,
@@ -145,6 +146,7 @@ class SeparateVR(SeparateAttributes):
             with torch.no_grad():
                 mask = []
                 for i in range(0, patches, self.batch_size):
+                    check_control(self.pause_event, self.cancel_event)
                     self.progress_value += 1
                     self.progress_value = min(total_iterations, self.progress_value)
                     self.set_progress_bar(0.1, 0.8/total_iterations*self.progress_value)

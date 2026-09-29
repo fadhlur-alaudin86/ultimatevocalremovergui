@@ -17,6 +17,7 @@ from lib_v5.tfc_tdf_v3 import STFT
 from uvr.core.device_manager import DeviceManager
 from uvr.models.base import (
     SeparateAttributes,
+    check_control,
     clear_gpu_cache,
     prepare_mix,
 )
@@ -144,6 +145,7 @@ class SeparateMDX(SeparateAttributes):
 
             with torch.no_grad():
                 for mix_wave in mix_waves:
+                    check_control(self.pause_event, self.cancel_event)
                     self.running_inference_progress_bar(total_chunks, is_match_mix=is_match_mix)
 
                     if hasattr(self, 'is_tta') and self.is_tta:

@@ -27,6 +27,25 @@ cuda_available = torch.cuda.is_available()
 warnings.filterwarnings('ignore')
 cpu = torch.device('cpu')
 
+class ControlCancelled(Exception):
+    """Raised when the user cancels a running inference job."""
+
+
+def check_control(pause_event=None, cancel_event=None):
+    """Cooperative pause/cancel checkpoint for inference batch loops.
+
+    ``pause_event`` set means paused: block until it is cleared.
+    ``cancel_event`` set means aborted: raise ``ControlCancelled``.
+    Both default to ``None`` (legacy callers without control events).
+    """
+    if cancel_event is not None and cancel_event.is_set():
+        raise ControlCancelled("inference cancelled by user")
+    if pause_event is not None:
+        while pause_event.is_set():
+            if cancel_event is not None and cancel_event.is_set():
+                raise ControlCancelled("inference cancelled while paused")
+            pause_event.wait(timeout=0.05)
+
 def clear_gpu_cache():
     gc.collect()
     if is_macos:
@@ -66,6 +85,8 @@ class SeparateAttributes:
         self.is_4_stem_ensemble = process_data['is_4_stem_ensemble']
         self.list_all_models = process_data['list_all_models']
         self.process_iteration = process_data['process_iteration']
+        self.pause_event = process_data.get('pause_event')
+        self.cancel_event = process_data.get('cancel_event')
         self.is_half_precision = process_data.get('is_half_precision', False)
         self.is_return_dual = is_return_dual
         self.is_pitch_change = model_data.is_pitch_change

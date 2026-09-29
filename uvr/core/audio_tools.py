@@ -15,8 +15,8 @@ import matchering as match
 
 from gui_data.constants import *
 from lib_v5 import spec_utils
-from separate import save_format
 from uvr.core.model_data import get_app_root
+from uvr.models.base import save_format
 
 logger = logging.getLogger(__name__)
 
