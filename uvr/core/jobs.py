@@ -33,7 +33,7 @@ class JobSpec:
 
 
 @dataclass(frozen=True)
-class JobError:
+class JobError(Exception):
     """Structured backend failure for views to render actionably."""
 
     code: str
