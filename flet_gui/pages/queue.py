@@ -55,6 +55,8 @@ def build_queue_view(service, bus) -> ft.View:
                 control.update()
 
     bus.subscribe("queue-changed", refresh)
+    if hasattr(service, "add_listener"):
+        service.add_listener(lambda _job_id, _status: refresh())
     refresh()
 
     return ft.View(

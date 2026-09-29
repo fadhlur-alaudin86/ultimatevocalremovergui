@@ -524,7 +524,12 @@ def prepare_mix(mix):
     audio_path = mix
 
     if not isinstance(mix, np.ndarray):
-        mix, _ = librosa.load(mix, mono=False, sr=44100)
+        try:
+            mix, _ = librosa.load(mix, mono=False, sr=44100)
+        except Exception as exc:
+            from uvr.core.jobs import JobError  # local: avoids uvr.core <-> uvr.models cycle
+
+            raise JobError(code="BAD_INPUT", message=f"cannot decode audio: {audio_path}", hint="re-check the input file") from exc
     else:
         mix = mix.T
 

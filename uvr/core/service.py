@@ -13,6 +13,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any
 
+from uvr.core.device_manager import DeviceManager
 from uvr.core.jobs import JobError, JobSpec
 from uvr.models.base import ControlCancelled
 from uvr.utils.file_utils import remove_temps
@@ -39,18 +40,41 @@ class _JobState:
 
 
 class InferenceService:
-    """Serial job queue with cooperative pause/cancel and temp cleanup."""
+    """Serial job queue with cooperative pause/cancel and temp cleanup.
+
+    Pause semantics: pausing PENDING jobs removes them from scheduling so the
+    worker yields to the next unpaused file (resume re-queues at front).
+    Pausing the RUNNING job blocks it mid-inference via ``check_control``
+    and holds the worker: a single GPU cannot safely start a second
+    inference while the first still holds VRAM, so the active inference
+    keeps priority until resume/cancel/finish.
+    """
 
     def __init__(self, run_fn=None, autostart: bool = True) -> None:
         self._run_fn = run_fn
         self._lock = threading.RLock()
         self._jobs: dict[int, _JobState] = {}
         self._order: list[int] = []
+        self._listeners: list[Any] = []
         self._counter = 0
         self._stopped = False
         self._worker: threading.Thread | None = None
         if autostart:
             self.start()
+
+    def add_listener(self, fn) -> None:
+        """Register ``fn(job_id, status)`` called on every status transition."""
+        with self._lock:
+            self._listeners.append(fn)
+
+    def _emit(self, job_id: int, status: str) -> None:
+        with self._lock:
+            fns = list(self._listeners)
+        for fn in fns:
+            try:
+                fn(job_id, status)
+            except Exception:
+                logger.exception("service listener failed for job %s", job_id)
 
     def start(self) -> None:
         with self._lock:
@@ -76,15 +100,21 @@ class InferenceService:
         for path in spec.input_paths:
             if not os.path.isfile(path):
                 raise JobError(code="BAD_INPUT", message=f"missing input: {path}", hint="re-check input files")
+        try:
+            DeviceManager.resolve(spec.device_set, want_gpu=spec.is_gpu_conversion)
+        except ValueError as exc:
+            raise JobError(code="BAD_DEVICE", message=str(exc), hint="pick an available GPU") from exc
         with self._lock:
             self._counter += 1
             job_id = self._counter
             self._jobs[job_id] = _JobState(spec=spec, runner=runner)
             self._order.append(job_id)
-            return job_id
+        self._emit(job_id, PENDING)
+        return job_id
 
     def pause(self, ids: list[int]) -> None:
         """Pause selected jobs: pending ones are skipped, a running one blocks mid-inference."""
+        changed = []
         with self._lock:
             for job_id in ids:
                 state = self._jobs.get(job_id)
@@ -92,12 +122,17 @@ class InferenceService:
                     continue
                 if state.status == PENDING:
                     state.status = PAUSED
+                    changed.append(job_id)
                 elif state.status == RUNNING:
                     state.pause_event.set()
                     state.status = PAUSED
+                    changed.append(job_id)
+        for job_id in changed:
+            self._emit(job_id, PAUSED)
 
     def resume(self, ids: list[int]) -> None:
         """Resume selected jobs; pending ones re-queue at the front, a paused running one unblocks."""
+        changed = []
         with self._lock:
             for job_id in ids:
                 state = self._jobs.get(job_id)
@@ -110,10 +145,14 @@ class InferenceService:
                     state.status = PENDING
                 else:
                     state.status = RUNNING
+                changed.append((job_id, state.status))
+        for job_id, status in changed:
+            self._emit(job_id, status)
 
     def cancel(self, ids: list[int]) -> None:
         """Cancel selected jobs, remove them from the worker, and clean temps/partials."""
         threads: list[threading.Thread] = []
+        immediate: list[int] = []
         with self._lock:
             for job_id in ids:
                 state = self._jobs.get(job_id)
@@ -128,7 +167,10 @@ class InferenceService:
                         threads.append(state.thread)
                 else:
                     state.status = CANCELLED
+                    immediate.append(job_id)
                     self._cleanup(state.spec)
+        for job_id in immediate:
+            self._emit(job_id, CANCELLED)
         for thread in threads:
             if thread is not threading.current_thread():
                 thread.join(timeout=30.0)
@@ -165,6 +207,7 @@ class InferenceService:
             if job_to_run is None:
                 threading.Event().wait(0.05)
                 continue
+            self._emit(job_to_run[0], RUNNING)
             self._run_job(*job_to_run)
 
     def _run_job(self, job_id: int, state: _JobState) -> None:
@@ -178,23 +221,27 @@ class InferenceService:
                     state.status = CANCELLED
                     state.error = JobError(code="CANCELLED", message=str(exc), hint="job cancelled by user")
                 self._cleanup(state.spec)
+                self._emit(job_id, CANCELLED)
             except JobError as exc:
                 with self._lock:
                     state.status = FAILED
                     state.error = exc
                 self._cleanup(state.spec)
+                self._emit(job_id, FAILED)
             except Exception as exc:
                 logger.exception("job %s failed", job_id)
                 with self._lock:
                     state.status = FAILED
                     state.error = JobError(code="FAILED", message=str(exc), hint="see log for details")
                 self._cleanup(state.spec)
+                self._emit(job_id, FAILED)
             else:
                 # Thread returned without exception: the job completed.
                 # (A pause() racing the final checkpoint leaves status
                 # PAUSED; completion still wins because all work is done.)
                 with self._lock:
                     state.status = COMPLETED
+                self._emit(job_id, COMPLETED)
 
         thread = threading.Thread(target=target, daemon=True)
         with self._lock:
@@ -211,12 +258,15 @@ class InferenceService:
             remove_temps(temp_dir)
 
     def _cleanup_partials(self, export_path: str, audio_file_base: str) -> None:
+        # Outputs are always "{base}_({stem}).wav" — match that shape exactly
+        # so unrelated files sharing the base prefix are never touched.
+        prefix = f"{audio_file_base}_("
         try:
             names = os.listdir(export_path)
         except OSError:
             return
         for name in names:
-            if name.startswith(audio_file_base):
+            if name.startswith(prefix):
                 try:
                     os.remove(os.path.join(export_path, name))
                 except OSError as exc:

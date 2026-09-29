@@ -106,8 +106,10 @@ provides explicit browse controls as an alternative input method (file picker
 with multi-select, folder picker) and a directory picker for the output path.
 
 Snapshot at enqueue: later setting edits never affect pending tasks. Worker
-runs one active inference at a time (single GPU); pause yields to the next
-file; resume re-queues at front. Cancel paths delete `ensemble_temps/`
+runs one active inference at a time (single GPU); pausing pending items yields
+to the next unpaused file, while pausing the running job holds the worker
+(the active inference keeps GPU priority until resume/cancel/finish — a second
+concurrent inference would risk VRAM exhaustion). Resume re-queues at front. Cancel paths delete `ensemble_temps/`
 entries and partial wavs and release GPU cache. Progress reuses the existing
 `set_progress_bar` callbacks forwarded over the `EventBus`; waveform uses
 downsampled peaks as in `uvr/ui/components/waveform_viewer.py`.

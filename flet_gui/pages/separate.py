@@ -17,7 +17,12 @@ from gui_data.constants import (
     MDX_ARCH_TYPE,
     VR_ARCH_PM,
 )
-from uvr.core.capability_registry import CAPABILITIES, OUTPUT_OPTIONS, SHARED_OPTIONS
+from uvr.core.capability_registry import (
+    CAPABILITIES,
+    OUTPUT_OPTIONS,
+    SHARED_OPTIONS,
+    is_known_option,
+)
 from uvr.core.device_manager import DeviceManager
 from uvr.core.input_resolver import InputResolver
 from uvr.core.jobs import JobSpec
@@ -49,6 +54,24 @@ def half_gate(want_gpu: bool, device_set: str | int) -> tuple[bool, str]:
     if not want_gpu or DeviceManager.autocast_device(device) != "cuda":
         return False, "Half-precision needs a CUDA GPU (CPU/MPS run full precision)."
     return False, "Half-precision disabled: GPU compute capability < 7.0."
+
+
+def collect_submit_options(store_data: dict, form_state: dict) -> dict:
+    """Merge persisted store values with live form state for submit.
+
+    Store holds per-method/output edits; form state holds shared toggles.
+    Unknown keys are dropped; form state wins on conflict.
+    """
+    options = {k: v for k, v in store_data.items() if is_known_option(k)}
+    options.update({k: v for k, v in form_state.items() if k in SHARED_OPTIONS})
+    return options
+
+
+def describe_resolve(accepted: list[str], rejected: list[str], source: str) -> str | None:
+    """Warning message when a drop/pick yields nothing usable, else None."""
+    if not accepted and not rejected:
+        return f"No supported audio files found in: {source}"
+    return None
 
 
 def build_job_specs(
@@ -125,6 +148,9 @@ def build_separate_view(service, store, bus) -> ft.View:
         refresh_inputs()
         for path in rejected:
             bus.publish("log", f"Skipped unsupported input: {path}")
+        warning = describe_resolve(accepted, rejected, ", ".join(paths) or "(empty)")
+        if warning is not None:
+            bus.publish("log", warning)
         status_text.value = f"{len(form_state['inputs'])} input(s)"
         for control in (input_list, status_text):
             if _page_of(control) is not None:
@@ -169,13 +195,19 @@ def build_separate_view(service, store, bus) -> ft.View:
     def on_half_change(event: ft.ControlEvent) -> None:
         form_state["is_half_precision"] = bool(event.control.value)
 
+    def on_model_change(event: ft.ControlEvent) -> None:
+        form_state["model_id"] = event.control.value
+
+    def on_format_select(event: ft.ControlEvent) -> None:
+        form_state["save_format"] = event.control.value
+
     def on_start_click(_event: ft.ControlEvent) -> None:
         specs = build_job_specs(
             method=form_state["method"],
             model_id=form_state["model_id"] or None,
             input_paths=list(form_state["inputs"]),
             export_path=output_field.value or form_state["export_path"],
-            options={k: v for k, v in form_state.items() if k in SHARED_OPTIONS},
+            options=collect_submit_options(store.as_dict(), form_state),
         )
         try:
             job_id = service.submit(specs[0])
@@ -206,6 +238,13 @@ def build_separate_view(service, store, bus) -> ft.View:
     )
     gpu_checkbox = ft.Checkbox(label="GPU", value=False, on_change=on_gpu_change)
     half_checkbox.on_change = on_half_change
+    model_field = ft.TextField(label="Model", value="", on_change=on_model_change)
+    format_dropdown = ft.Dropdown(
+        label="Format",
+        options=[ft.dropdown.Option(fmt) for fmt in ("WAV", "FLAC", "MP3")],
+        value=form_state["save_format"],
+        on_select=on_format_select,
+    )
 
     render_fields()
     refresh_inputs()
@@ -213,7 +252,7 @@ def build_separate_view(service, store, bus) -> ft.View:
     view = ft.View(
         route="/separate",
         controls=[
-            ft.Row([method_dropdown, gpu_checkbox, half_checkbox], wrap=True),
+            ft.Row([method_dropdown, model_field, format_dropdown, gpu_checkbox, half_checkbox], wrap=True),
             half_reason,
             ft.Row(
                 [

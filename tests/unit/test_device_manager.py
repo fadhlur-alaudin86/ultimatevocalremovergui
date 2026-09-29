@@ -15,5 +15,7 @@ def test_half_allowed_requires_cuda_cc7():
 
 
 def test_resolve_bad_index_raises():
+    if not torch.cuda.is_available():
+        pytest.skip("needs CUDA for index range check")
     with pytest.raises(ValueError):
         DeviceManager.resolve(99, want_gpu=True)

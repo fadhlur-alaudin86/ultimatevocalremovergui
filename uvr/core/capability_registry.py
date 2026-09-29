@@ -162,6 +162,11 @@ for _options in CAPABILITIES.values():
     _KNOWN_KEYS.update(_options)
 
 
+def is_known_option(key: str) -> bool:
+    """True for store keys the GUI recognizes (submit merge filter)."""
+    return key in _KNOWN_KEYS
+
+
 def migrate_legacy(data: dict) -> tuple[dict, list[str]]:
     """Migrate a legacy flat settings dict toward the v2 schema.
 
