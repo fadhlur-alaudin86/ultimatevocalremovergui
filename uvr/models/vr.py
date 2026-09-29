@@ -12,6 +12,7 @@ from gui_data.constants import *
 from gui_data.error_handling import *
 from lib_v5 import spec_utils
 from lib_v5.vr_network import nets, nets_new
+from uvr.core.device_manager import DeviceManager
 from uvr.models.base import (
     SeparateAttributes,
     clear_gpu_cache,
@@ -149,8 +150,8 @@ class SeparateVR(SeparateAttributes):
                     self.set_progress_bar(0.1, 0.8/total_iterations*self.progress_value)
                     X_batch = X_dataset[i: i + self.batch_size]
                     X_batch = torch.from_numpy(X_batch).pin_memory().to(device, non_blocking=True)
-                    device_type_str = device.type if not isinstance(device, str) else device.split(':')[0]
-                    with torch.autocast(device_type=device_type_str, dtype=torch.float16, enabled=self.is_half_precision and device_type_str == 'cuda'):
+                    autocast_device = DeviceManager.autocast_device(device)
+                    with torch.autocast(device_type=autocast_device, dtype=torch.float16, enabled=self.is_half_precision and autocast_device == 'cuda'):
                         pred = self.model_run.predict_mask(X_batch)
                     if not pred.size()[3] > 0:
                         raise Exception(ERROR_MAPPER[WINDOW_SIZE_ERROR])

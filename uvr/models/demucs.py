@@ -14,6 +14,7 @@ from demucs.utils import apply_model_v1, apply_model_v2
 from gui_data.constants import *
 from gui_data.error_handling import *
 from lib_v5 import spec_utils
+from uvr.core.device_manager import DeviceManager
 from uvr.models.base import (
     SeparateAttributes,
     clear_gpu_cache,
@@ -216,8 +217,8 @@ class SeparateDemucs(SeparateAttributes):
         mix_infer = mix
 
         with torch.no_grad():
-            device_type_str = self.device.type if not isinstance(self.device, str) else self.device.split(':')[0]
-            with torch.autocast(device_type=device_type_str, dtype=torch.float16, enabled=self.is_half_precision and device_type_str == 'cuda'):
+            autocast_device = DeviceManager.autocast_device(self.device)
+            with torch.autocast(device_type=autocast_device, dtype=torch.float16, enabled=self.is_half_precision and autocast_device == 'cuda'):
                 if self.demucs_version == DEMUCS_V1:
                     sources = apply_model_v1(self.demucs,
                                                 mix_infer.to(self.device),

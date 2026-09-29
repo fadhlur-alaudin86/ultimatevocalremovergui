@@ -14,6 +14,7 @@ from gui_data.constants import *
 from gui_data.error_handling import *
 from lib_v5 import spec_utils
 from lib_v5.tfc_tdf_v3 import STFT
+from uvr.core.device_manager import DeviceManager
 from uvr.models.base import (
     SeparateAttributes,
     clear_gpu_cache,
@@ -191,8 +192,8 @@ class SeparateMDX(SeparateAttributes):
         if is_match_mix:
             spec_pred = spek.cpu().numpy()
         else:
-            device_type_str = self.device.type if not isinstance(self.device, str) else self.device.split(':')[0]
-            with torch.autocast(device_type=device_type_str, dtype=torch.float16, enabled=self.is_half_precision and device_type_str == 'cuda'):
+            autocast_device = DeviceManager.autocast_device(self.device)
+            with torch.autocast(device_type=autocast_device, dtype=torch.float16, enabled=self.is_half_precision and autocast_device == 'cuda'):
                 spec_pred = -self.model_run(-spek)*0.5+self.model_run(spek)*0.5 if self.is_denoise else self.model_run(spek)
 
         return self.stft.inverse(torch.tensor(spec_pred).to(self.device)).cpu().detach().numpy()

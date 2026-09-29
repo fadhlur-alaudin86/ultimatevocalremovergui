@@ -10,6 +10,7 @@ import torch
 from gui_data.constants import *
 from gui_data.error_handling import *
 from lib_v5 import spec_utils
+from uvr.core.device_manager import DeviceManager
 from uvr.models.base import (
     SeparateAttributes,
     clear_gpu_cache,
@@ -333,8 +334,8 @@ class SeparateMDXC(SeparateAttributes):
             cnt = 0
             for batch in batches:
                 self.running_inference_progress_bar(len(batches))
-                device_type_str = self.device.type if not isinstance(self.device, str) else self.device.split(':')[0]
-                with torch.autocast(device_type=device_type_str, dtype=torch.float16, enabled=self.is_half_precision and device_type_str == 'cuda'):
+                autocast_device = DeviceManager.autocast_device(self.device)
+                with torch.autocast(device_type=autocast_device, dtype=torch.float16, enabled=self.is_half_precision and autocast_device == 'cuda'):
                     batch_pin = batch.pin_memory().to(self.device, non_blocking=True)
                     if hasattr(self, 'is_tta') and self.is_tta:
                         x_normal = model(batch_pin)
