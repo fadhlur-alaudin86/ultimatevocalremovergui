@@ -44,6 +44,10 @@ CAPABILITIES: dict[str, list[str]] = {
         "vr_bass_secondary_model",
         "vr_drums_secondary_model",
         "vr_is_secondary_model_activate",
+        "vr_voc_inst_secondary_model_scale",
+        "vr_other_secondary_model_scale",
+        "vr_bass_secondary_model_scale",
+        "vr_drums_secondary_model_scale",
     ],
     MDX_ARCH_TYPE: [
         "mdx_net_model",
@@ -65,6 +69,12 @@ CAPABILITIES: dict[str, list[str]] = {
         "mdx_bass_secondary_model",
         "mdx_drums_secondary_model",
         "mdx_is_secondary_model_activate",
+        "mdx_voc_inst_secondary_model_scale",
+        "mdx_other_secondary_model_scale",
+        "mdx_bass_secondary_model_scale",
+        "mdx_drums_secondary_model_scale",
+        "mdx_stems",
+        "is_chunk_mdxnet",
     ],
     DEMUCS_ARCH_TYPE: [
         "demucs_model",
@@ -82,6 +92,11 @@ CAPABILITIES: dict[str, list[str]] = {
         "demucs_bass_secondary_model",
         "demucs_drums_secondary_model",
         "demucs_is_secondary_model_activate",
+        "demucs_voc_inst_secondary_model_scale",
+        "demucs_other_secondary_model_scale",
+        "demucs_bass_secondary_model_scale",
+        "demucs_drums_secondary_model_scale",
+        "demucs_stems",
         "demucs_pre_proc_model",
         "is_demucs_pre_proc_model_activate",
         "is_demucs_pre_proc_model_inst_mix",
@@ -110,16 +125,41 @@ CAPABILITIES: dict[str, list[str]] = {
     ],
 }
 
+# Cross-method output and post-processing behavior. Rendered in the output
+# section of every method form (not the always-visible shared row).
+OUTPUT_OPTIONS: list[str] = [
+    "is_primary_stem_only",
+    "is_secondary_stem_only",
+    "is_normalization",
+    "is_replaygain",
+    "semitone_shift",
+    "is_deverb_vocals",
+    "deverb_vocal_opt",
+    "is_mixer_mode",
+    "set_vocal_splitter",
+    "is_set_vocal_splitter",
+    "is_save_inst_set_vocal_splitter",
+    "voc_split_save_opt",
+    "is_add_model_name",
+    "is_create_model_folder",
+    "is_task_complete",
+    "is_testing_audio",
+    "is_use_opencl",
+    "is_time_correction",
+    "is_output_image",
+    "is_auto_update_model_params",
+    "is_accept_any_input",
+]
+
 # The legacy Demucs-only stem pair folds into the shared pair.
 _LEGACY_STEM_FOLD = {
     "is_primary_stem_only_Demucs": "is_primary_stem_only",
     "is_secondary_stem_only_Demucs": "is_secondary_stem_only",
 }
 
-_KNOWN_KEYS: set[str] = set(SHARED_OPTIONS)
+_KNOWN_KEYS: set[str] = set(SHARED_OPTIONS) | set(OUTPUT_OPTIONS)
 for _options in CAPABILITIES.values():
     _KNOWN_KEYS.update(_options)
-_KNOWN_KEYS.update({"is_primary_stem_only", "is_secondary_stem_only"})
 
 
 def migrate_legacy(data: dict) -> tuple[dict, list[str]]:
