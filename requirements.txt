@@ -140,3 +140,6 @@ yarl==1.24.2
 # Mamba2: Requires mamba_ssm, causal-conv1d, rotary_embedding_torch, beartype.
 # mamba_ssm==2.2.2
 # causal-conv1d==1.4.0
+
+# --- Flet GUI ---
+flet>=1.0,<2.0
