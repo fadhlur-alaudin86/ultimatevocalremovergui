@@ -98,7 +98,7 @@ def get_file_extension(file_path: str) -> str:
 
 def is_supported_audio(file_path: str) -> bool:
     """Check if file matches supported audio extensions."""
-    supported = {".wav", ".flac", ".mp3", ".ogg", ".m4a", ".aac", ".wma"}
+    supported = {".wav", ".flac", ".mp3", ".ogg", ".m4a", ".aac", ".wma", ".opus", ".aiff", ".alac"}
     return get_file_extension(file_path) in supported
 
 
