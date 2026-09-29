@@ -58,6 +58,8 @@ def main(page: ft.Page) -> None:
         destinations=[ft.NavigationRailDestination(label=key.title()) for key in VIEW_KEYS],
         on_change=on_rail_change,
     )
+    for picker in views["separate"].data["pickers"]:
+        page.overlay.append(picker)
     page.add(ft.Row([rail, ft.VerticalDivider(width=1), views["separate"]], expand=True), status)
 
 
