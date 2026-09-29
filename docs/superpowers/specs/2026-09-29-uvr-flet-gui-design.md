@@ -101,7 +101,9 @@ flags incl. half/device/sample-mode, input list, export dir, output format).
 `InputResolver`: drop of files / multi-select / folders; folders scanned
 recursively; only extensions listed in the existing `ANY_EXT` constant
 (`gui_data/constants.py`, covering wav/mp3/flac/ogg/m4a and alikes) become
-inputs; rejected paths are logged in the Log view.
+inputs; rejected paths are logged in the Log view. The Separate view also
+provides explicit browse controls as an alternative input method (file picker
+with multi-select, folder picker) and a directory picker for the output path.
 
 Snapshot at enqueue: later setting edits never affect pending tasks. Worker
 runs one active inference at a time (single GPU); pause yields to the next
